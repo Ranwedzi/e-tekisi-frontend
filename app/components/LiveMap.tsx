@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 type LatLngTuple = [number, number];
-type TaxiLocation = { driverId: string | number; lat: number; lng: number };
+type TaxiLocation = { driverId: string | number; lat: number | null; lng: number | null };
 
 const taxiSvg = `
   <svg width="50" height="50" viewBox="0 0 100 100" aria-hidden="true">
@@ -24,6 +24,15 @@ const taxiSvg = `
 const userSvg = `
   <div style="width:18px;height:18px;background:#3b82f6;border:3px solid white;border-radius:50%"></div>
 `;
+
+// The old CARTO basemap URL now needs an API key and rendered "API KEY REQUIRED"
+// tiles. OpenStreetMap's own tiles are fine for development and light use; set
+// NEXT_PUBLIC_MAP_TILE_URL / NEXT_PUBLIC_MAP_ATTRIBUTION to a tile provider for
+// production traffic (OSM's tile usage policy forbids heavy use).
+const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_ATTRIBUTION =
+  process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ??
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const hasValidCoords = (coords?: LatLngTuple) =>
   Array.isArray(coords) &&
@@ -95,12 +104,12 @@ export default function LiveMap({
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
       >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
         {safeRoute.length > 0 && <Polyline positions={safeRoute} color="#FFD217" weight={6} opacity={0.8} />}
         {canFly && icons?.user && <Marker position={center} icon={icons.user} />}
         {icons?.taxi &&
           nearbyTaxis
-            .filter((t) => Number.isFinite(t.lat) && Number.isFinite(t.lng))
+            .filter((t): t is TaxiLocation & { lat: number; lng: number } => Number.isFinite(t.lat) && Number.isFinite(t.lng))
             .map((t) => <Marker key={t.driverId} position={[t.lat, t.lng]} icon={icons.taxi} />)}
         <MapController center={resolvedCenter} canFly={canFly} />
       </MapContainer>

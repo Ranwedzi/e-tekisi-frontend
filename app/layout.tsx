@@ -1,6 +1,6 @@
-"use client";
-import { useEffect } from "react";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,37 +13,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const metadata: Metadata = {
+  title: "e-Tekisi",
+  description: "Book minibus taxis, pay from your wallet and track your trip.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#FFD217",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  
-  useEffect(() => {
-    const checkSession = () => {
-      const sessionStr = localStorage.getItem('etekisi_session');
-      if (sessionStr) {
-        const session = JSON.parse(sessionStr);
-        const thirtyMinutes = 30 * 60 * 1000;
-        
-        if (Date.now() - session.loginTime > thirtyMinutes) {
-          localStorage.removeItem('etekisi_session');
-          alert("Session expired. Please login again.");
-          window.location.href = "/login";
-        }
-      }
-    };
-
-    checkSession();
-    // Check every minute while the app is open
-    const interval = setInterval(checkSession, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F5F5F7]`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -10,10 +10,7 @@ export function useGeolocation() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      setError("Geolocation not supported");
-      return;
-    }
+    if (!("geolocation" in navigator)) return; // reported below
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -29,5 +26,6 @@ export function useGeolocation() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  return { coords, error };
+  const unsupported = typeof navigator !== "undefined" && !("geolocation" in navigator);
+  return { coords, error: unsupported ? "Geolocation not supported" : error };
 }

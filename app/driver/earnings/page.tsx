@@ -1,134 +1,223 @@
 "use client";
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useAuthedSession } from "../../components/RequireAuth";
+import { useToast } from "../../components/Feedback";
+import { BackIcon, MoneyIcon, TaxiIcon } from "../../components/Icons";
+import { DriverNav } from "../../components/Nav";
+import { Spinner } from "../../components/Spinner";
+import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
+import { usePolling } from "../../lib/usePolling";
+import type { Earnings, Payout, PayoutMethod } from "../../lib/types";
+
+const METHODS: { value: PayoutMethod; label: string }[] = [
+  { value: "BANK_TRANSFER", label: "Bank transfer" },
+  { value: "FNB_EWALLET", label: "FNB eWallet" },
+  { value: "CAPITEC_CASH_SEND", label: "Capitec Cash Send" },
+];
+const MIN_PAYOUT = 20;
 
 export default function DriverEarnings() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const session = useAuthedSession();
+  const [data, setData] = useState<Earnings | null>(null);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [showForm, setShowForm] = useState(false);
 
-  const fetchEarnings = async () => {
-    // 1. Get session to find current driver ID
-    const sessionStr = localStorage.getItem('etekisi_session');
-    if (!sessionStr) {
-      window.location.href = "/login";
-      return;
-    }
-    const session = JSON.parse(sessionStr);
-
-    try {
-      // 2. Fetch from the robust backend endpoint we just updated
-      const res = await fetch(`http://localhost:8080/api/bookings/driver/${session.userId}/earnings`);
-      
-      if (res.ok) {
-        const result = await res.json();
-        setData(result);
-      } else {
-        console.error("Server returned an error for earnings");
-      }
-    } catch (error) {
-      console.error("Network error fetching earnings:", error);
-    } finally {
-      setLoading(false);
-    }
+  const load = async () => {
+    const [e, p] = await Promise.all([
+      apiFetch<Earnings>(`/api/bookings/driver/${session.userId}/earnings`),
+      apiFetch<Payout[]>(`/api/payouts/driver/${session.userId}`),
+    ]);
+    setData(e);
+    setPayouts(p);
   };
+  usePolling(load, 30_000);
 
-  useEffect(() => {
-    fetchEarnings();
-  }, []);
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
-      <div className="w-10 h-10 border-4 border-[#FFD217] border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (!data) return <Spinner dark />;
 
   return (
-    <div className="min-h-screen bg-[#1A1A1A] text-white font-sans p-6 pb-20">
-      
-      {/* HEADER */}
+    <div className="min-h-screen bg-[#1A1A1A] text-white font-sans p-6 pb-32">
       <div className="flex items-center gap-4 mb-10">
-        <Link href="/driver" className="p-3 bg-[#262626] rounded-2xl text-[#FFD217] active:scale-90 transition shadow-lg border border-[#333]">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-          </svg>
+        <Link href="/driver" className="p-3 bg-[#262626] rounded-2xl text-[#FFD217] active:scale-90 transition shadow-lg border border-[#333]" aria-label="Back">
+          <BackIcon />
         </Link>
         <h1 className="text-2xl font-black uppercase tracking-tighter">My Earnings</h1>
       </div>
 
-      {/* MAIN BALANCE CARD */}
       <div className="bg-[#FFD217] text-black p-10 rounded-[40px] shadow-2xl flex flex-col items-center mb-8 relative overflow-hidden border-4 border-[#e6bd15]">
-        {/* Decorative Background Element */}
-        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-black/5 rounded-full"></div>
-        
+        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-black/5 rounded-full" />
         <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Available for Payout</p>
         <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-black">R</span>
-            <h2 className="text-6xl font-black tracking-tighter">
-                {data?.totalEarnings?.toFixed(2) || "0.00"}
-            </h2>
+          <span className="text-2xl font-black">R</span>
+          <h2 className="text-6xl font-black tracking-tighter">{data.availableBalance.toFixed(2)}</h2>
         </div>
-        
-        <button className="mt-8 bg-black text-white px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition hover:bg-gray-900">
+        <button
+          onClick={() => setShowForm(true)}
+          disabled={data.availableBalance < MIN_PAYOUT}
+          className="mt-8 bg-black text-white px-12 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition hover:bg-gray-900 disabled:opacity-50"
+        >
           Request Payout
         </button>
+        {data.availableBalance < MIN_PAYOUT && <p className="text-[11px] font-bold opacity-60 mt-3">Minimum payout is R{MIN_PAYOUT}.</p>}
       </div>
 
-      {/* QUICK STATS ROW */}
       <div className="bg-[#262626] p-7 rounded-[32px] border border-[#333] mb-10 flex justify-around items-center shadow-inner">
-        <div className="text-center">
-            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Trips Done</p>
-            <p className="text-2xl font-black">{data?.tripCount || 0}</p>
-        </div>
-        <div className="w-[1px] h-10 bg-[#333]"></div>
-        <div className="text-center">
-            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Avg. Per Trip</p>
-            <p className="text-2xl font-black text-[#FFD217]">
-                R{data?.tripCount > 0 ? (data.totalEarnings / data.tripCount).toFixed(2) : "0.00"}
-            </p>
-        </div>
+        <Stat label="Trips Done" value={String(data.tripCount)} />
+        <div className="w-[1px] h-10 bg-[#333]" />
+        <Stat label="Total Earned" value={`R${data.totalEarnings.toFixed(2)}`} highlight />
+        <div className="w-[1px] h-10 bg-[#333]" />
+        <Stat label="Avg / Trip" value={`R${data.tripCount > 0 ? (data.totalEarnings / data.tripCount).toFixed(2) : "0.00"}`} />
       </div>
 
-      {/* TRIP HISTORY LIST */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-2 mb-4">
-            <h3 className="font-black text-gray-500 uppercase text-[10px] tracking-widest">Recent Activity</h3>
-            <span className="text-[9px] font-bold text-[#FFD217] uppercase">View All</span>
-        </div>
-        
-        {data?.history?.length > 0 ? data.history.map((trip: any) => (
-          <div key={trip.id} className="bg-[#262626] p-6 rounded-[32px] flex justify-between items-center border border-[#333] shadow-lg animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-[#1A1A1A] rounded-2xl text-[#FFD217] border border-[#333]">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.806H8.044a2.056 2.056 0 0 0-1.58.806c-1.22 1.534-2.18 3.265-2.845 5.122m14.547 4.071a1.875 1.875 0 1 1-3.75 0m3.75 0V14.25m-8.25 4.5V14.25M6.75 14.25H19.5" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-black text-sm leading-tight">{trip.destination}</p>
-                <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-tighter">
-                    {trip.scheduledTime ? trip.scheduledTime.replace('T', ' ') : 'Completed Trip'}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-                <p className="font-black text-[#FFD217] text-lg tracking-tighter">R{trip.fare?.toFixed(2) || "0.00"}</p>
-                <div className="flex items-center justify-end gap-1">
-                    <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-                    <p className="text-[8px] font-black text-green-500 uppercase tracking-widest">Settled</p>
+      {payouts.length > 0 && (
+        <section className="mb-10">
+          <h3 className="font-black text-gray-500 uppercase text-[10px] tracking-widest px-2 mb-4">Payout Requests</h3>
+          <div className="space-y-3">
+            {payouts.map((p) => (
+              <div key={p.id} className="bg-[#262626] p-5 rounded-[28px] border border-[#333] flex justify-between items-center">
+                <div>
+                  <p className="font-black text-sm">{METHODS.find((m) => m.value === p.method)?.label ?? p.method}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase">
+                    {p.accountNumberMasked ?? p.phoneNumberMasked ?? ""} {p.createdAt ? `· ${new Date(p.createdAt).toLocaleDateString()}` : ""}
+                  </p>
                 </div>
-            </div>
+                <div className="text-right">
+                  <p className="font-black text-[#FFD217]">R{p.amount.toFixed(2)}</p>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{p.status}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        )) : (
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <h3 className="font-black text-gray-500 uppercase text-[10px] tracking-widest px-2 mb-4">Completed Trips</h3>
+        {data.history.length > 0 ? (
+          data.history.map((trip) => (
+            <div key={trip.id} className="bg-[#262626] p-6 rounded-[32px] flex justify-between items-center border border-[#333] shadow-lg">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-[#1A1A1A] rounded-2xl text-[#FFD217] border border-[#333]">
+                  <TaxiIcon />
+                </div>
+                <div>
+                  <p className="font-black text-sm leading-tight">{trip.destination}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-tighter">from {trip.pickupLocation}</p>
+                </div>
+              </div>
+              <p className="font-black text-[#FFD217] text-lg tracking-tighter">R{((trip.fare ?? 0) + (trip.tip ?? 0)).toFixed(2)}</p>
+            </div>
+          ))
+        ) : (
           <div className="bg-[#262626] p-16 rounded-[40px] border-2 border-dashed border-[#333] text-center flex flex-col items-center gap-4">
             <div className="p-4 bg-[#1A1A1A] rounded-full text-gray-700">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
+              <MoneyIcon className="w-8 h-8" />
             </div>
-            <p className="text-gray-500 font-bold text-sm tracking-tight">You haven't completed any trips yet.</p>
+            <p className="text-gray-500 font-bold text-sm tracking-tight">You haven&apos;t completed any trips yet.</p>
           </div>
         )}
-      </div>
+      </section>
+
+      {showForm && (
+        <PayoutForm
+          driverId={session.userId}
+          available={data.availableBalance}
+          onClose={() => setShowForm(false)}
+          onDone={async () => {
+            setShowForm(false);
+            await load();
+          }}
+        />
+      )}
+
+      <DriverNav current="earnings" />
+    </div>
+  );
+}
+
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="text-center">
+      <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">{label}</p>
+      <p className={`text-xl font-black ${highlight ? "text-[#FFD217]" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function PayoutForm({ driverId, available, onClose, onDone }: { driverId: number; available: number; onClose: () => void; onDone: () => Promise<void> }) {
+  const toast = useToast();
+  const [method, setMethod] = useState<PayoutMethod>("BANK_TRANSFER");
+  const [amount, setAmount] = useState(String(Math.floor(available)));
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value < MIN_PAYOUT) return setError(`Minimum payout is R${MIN_PAYOUT}.`);
+    if (value > available) return setError(`You have R${available.toFixed(2)} available.`);
+    if (method === "BANK_TRANSFER" && (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) {
+      return setError("Enter the bank, account number and account holder.");
+    }
+    if (method !== "BANK_TRANSFER" && !phoneNumber.trim()) return setError("Enter the phone number to send to.");
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/api/payouts/driver/${driverId}/request`, {
+        method: "POST",
+        idempotencyKey: newIdempotencyKey(),
+        body: {
+          amount: value,
+          method,
+          ...(method === "BANK_TRANSFER" ? { bankName, accountNumber, accountHolder } : { phoneNumber }),
+        },
+      });
+      toast.success(`Payout of R${value.toFixed(2)} requested.`);
+      await onDone();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const field = "w-full p-4 bg-[#1A1A1A] rounded-2xl outline-none font-bold border border-[#333] focus:border-[#FFD217]";
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[3000] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="payout-title">
+      <form onSubmit={submit} className="w-full max-w-sm bg-[#262626] text-white rounded-[32px] p-6 shadow-2xl border border-[#333] space-y-3">
+        <h2 id="payout-title" className="text-xl font-black">Request payout</h2>
+        <select aria-label="Payout method" value={method} onChange={(e) => setMethod(e.target.value as PayoutMethod)} className={field}>
+          {METHODS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <input aria-label="Amount" type="number" inputMode="decimal" min={MIN_PAYOUT} max={available} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={field} placeholder="Amount (R)" />
+        {method === "BANK_TRANSFER" ? (
+          <>
+            <input aria-label="Bank name" value={bankName} onChange={(e) => setBankName(e.target.value)} className={field} placeholder="Bank (e.g. FNB)" />
+            <input aria-label="Account number" inputMode="numeric" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={field} placeholder="Account number" />
+            <input aria-label="Account holder" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} className={field} placeholder="Account holder" />
+          </>
+        ) : (
+          <input aria-label="Phone number" type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className={field} placeholder="Phone number" />
+        )}
+        {error && <p role="alert" className="text-sm font-bold text-red-400">{error}</p>}
+        <div className="grid grid-cols-2 gap-3 pt-3">
+          <button type="button" onClick={onClose} className="py-4 rounded-2xl bg-[#333] font-black text-xs uppercase tracking-widest">
+            Back
+          </button>
+          <button type="submit" disabled={submitting} className="py-4 rounded-2xl bg-[#FFD217] text-black font-black text-xs uppercase tracking-widest disabled:opacity-60">
+            {submitting ? "Sending..." : "Request"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
