@@ -42,3 +42,6 @@ next-env.d.ts
 
 .idea/
 .DS_Store
+
+# ...but keep the documented example
+!.env.local.example

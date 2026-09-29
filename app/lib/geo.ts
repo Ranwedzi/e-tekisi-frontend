@@ -1,38 +1,38 @@
 "use client";
+import { apiFetch } from "./api";
+import type { LatLng } from "./types";
 
-type LatLngTuple = [number, number];
+// The backend caches these too; this per-tab cache just saves a round trip
+// while a trip card is being re-rendered.
+const geocodeCache = new Map<string, LatLng>();
 
-const geocodeCache = new Map<string, LatLngTuple>();
-
-export async function geocodeLocation(query: string): Promise<LatLngTuple | null> {
+export async function geocodeLocation(query: string): Promise<LatLng | null> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return null;
   const cached = geocodeCache.get(normalized);
   if (cached) return cached;
 
-  const res = await fetch(`http://localhost:8080/api/geo/geocode?query=${encodeURIComponent(query)}`);
-  if (!res.ok) return null;
-  const data = await res.json();
+  const data = await apiFetch<{ status: string; lat?: number; lng?: number }>("/api/geo/geocode", {
+    query: { query: query.trim() },
+  });
   if (data?.status !== "OK") return null;
 
-  const lat = Number.parseFloat(String(data.lat));
-  const lng = Number.parseFloat(String(data.lng));
+  const lat = Number(data.lat);
+  const lng = Number(data.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-  const coords: LatLngTuple = [lat, lng];
+  const coords: LatLng = [lat, lng];
   geocodeCache.set(normalized, coords);
   return coords;
 }
 
-export async function buildRoutePolyline(from: LatLngTuple, to: LatLngTuple): Promise<LatLngTuple[]> {
-  const res = await fetch(
-    `http://localhost:8080/api/geo/route?fromLat=${from[0]}&fromLng=${from[1]}&toLat=${to[0]}&toLng=${to[1]}`
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
+export async function buildRoutePolyline(from: LatLng, to: LatLng): Promise<LatLng[]> {
+  const data = await apiFetch<{ status: string; points?: [number, number][] }>("/api/geo/route", {
+    query: { fromLat: from[0], fromLng: from[1], toLat: to[0], toLng: to[1] },
+  });
   if (data?.status !== "OK" || !Array.isArray(data.points)) return [];
 
   return data.points
-    .map((point: [number, number]) => [Number(point[0]), Number(point[1])] as LatLngTuple)
+    .map((point): LatLng => [Number(point[0]), Number(point[1])])
     .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
 }
