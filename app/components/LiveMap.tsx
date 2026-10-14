@@ -29,9 +29,9 @@ const userSvg = `
 // tiles. OpenStreetMap's own tiles are fine for development and light use; set
 // NEXT_PUBLIC_MAP_TILE_URL / NEXT_PUBLIC_MAP_ATTRIBUTION to a tile provider for
 // production traffic (OSM's tile usage policy forbids heavy use).
-const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
-  process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ??
+  process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ||
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const hasValidCoords = (coords?: LatLngTuple) =>

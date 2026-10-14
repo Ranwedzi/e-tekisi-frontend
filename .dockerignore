@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.gitignore
+.idea
+.vscode
+npm-debug.log*
+# Local env files would override the build args.
+.env*
+Dockerfile
+.dockerignore
+README.md

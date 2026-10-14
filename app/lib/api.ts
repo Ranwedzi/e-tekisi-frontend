@@ -2,7 +2,7 @@
 import { clearSession, getSession } from "./session";
 
 /** Backend origin. Set NEXT_PUBLIC_API_URL in .env.local for anything but local dev. */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "");
 
 /** An error response from the backend (RFC 7807 ProblemDetail) or a network failure (status 0). */
 export class ApiError extends Error {
