@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Lint, type-check, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  # The end-to-end tests (npm run test:e2e) need the backend and a database,
+  # which live in the e-tekisi-backend repo. Run them locally against
+  # `docker compose up -d --build` there, or add a job here that checks out
+  # both repos and starts that compose stack before `npx playwright test`.

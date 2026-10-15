@@ -45,3 +45,9 @@ next-env.d.ts
 
 # ...but keep the documented example
 !.env.local.example
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

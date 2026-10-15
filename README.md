@@ -51,6 +51,33 @@ the base URL and the token. Error responses are RFC 7807 with a stable
 
 ```bash
 npm run lint
-npx tsc --noEmit
+npm run typecheck
 npm run build
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same three.
+
+## End-to-end tests (Playwright)
+
+`e2e/` drives the real app on a phone-sized Chrome: sign-in guards, sign-up
+validation, the operator screen, and the full ride (commuter tops up and
+books → driver offers a fare → commuter accepts and pays → driver completes
+→ driver requests a payout), with commuter and driver in separate browsers.
+
+They need the whole stack running. From the backend repo:
+
+```bash
+docker compose up -d --build
+```
+
+Then here (first time: `npx playwright install chromium`):
+
+```bash
+npm run test:e2e
+```
+
+Settings: `E2E_BASE_URL` (default `http://localhost:3000`), `E2E_API_URL`
+(default `http://localhost:8080`). The operator test runs only when
+`E2E_OPS_EMAIL` / `E2E_OPS_PASSWORD` are set to the backend's
+`ADMIN_BOOTSTRAP_*` account. Each run creates its own uniquely named
+accounts, so it can be repeated against the same database.
