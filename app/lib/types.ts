@@ -80,7 +80,43 @@ export interface Payout {
   accountNumberMasked: string | null;
   accountHolder: string | null;
   phoneNumberMasked: string | null;
-  status: string;
+  status: PayoutStatus;
+  createdAt: string | null;
+  processedAt: string | null;
+  rejectionReason: string | null;
+}
+
+export type PayoutStatus = "PENDING" | "APPROVED" | "PAID" | "REJECTED";
+
+/** Payout with full details, from the staff-only /api/payouts endpoints. */
+export interface PayoutOps {
+  id: number;
+  driverId: number;
+  driverName: string | null;
+  driverPhone: string | null;
+  amount: number;
+  method: PayoutMethod;
+  bankName: string | null;
+  accountNumber: string | null;
+  accountHolder: string | null;
+  phoneNumber: string | null;
+  status: PayoutStatus;
+  createdAt: string | null;
+  processedAt: string | null;
+  processedBy: number | null;
+  reference: string | null;
+  rejectionReason: string | null;
+}
+
+export interface Insight {
+  id: number;
+  type: string;
+  code: string;
+  severity: "INFO" | "WARN" | "CRITICAL";
+  message: string;
+  bookingId: number | null;
+  driverId: number | null;
+  commuterId: number | null;
   createdAt: string | null;
 }
 

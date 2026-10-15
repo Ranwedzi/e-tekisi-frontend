@@ -21,6 +21,7 @@ function LoginForm() {
   const params = useSearchParams();
   const { session, ready } = useSession();
   const [role, setRole] = useState<Role>("COMMUTER");
+  const [staff, setStaff] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +52,7 @@ function LoginForm() {
       const data = await apiFetch<LoginResponse>("/api/auth/login", {
         method: "POST",
         auth: false,
-        body: { email: email.trim(), password, role },
+        body: { email: email.trim(), password, role: staff ? "OPERATOR" : role },
       });
       saveSession(data.token, data.userId, data.role, data.expiresInSeconds);
       router.replace(homeFor(data.role));
@@ -74,6 +75,7 @@ function LoginForm() {
       <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4" noValidate>
         {notice && <p className="p-4 rounded-2xl bg-yellow-50 text-yellow-800 text-sm font-bold">{notice}</p>}
 
+        {!staff && (
         <div className="flex bg-gray-100 p-1 rounded-2xl mb-4 border border-gray-200" role="radiogroup" aria-label="Sign in as">
           {(["COMMUTER", "DRIVER"] as const).map((r) => (
             <button
@@ -88,6 +90,8 @@ function LoginForm() {
             </button>
           ))}
         </div>
+        )}
+        {staff && <p className="p-4 rounded-2xl bg-gray-100 text-sm font-bold text-gray-600">Operator sign-in</p>}
 
         <input
           type="email"
@@ -132,7 +136,13 @@ function LoginForm() {
           {submitting ? "SIGNING IN..." : "LOGIN"}
         </button>
 
-        <p className="text-center mt-8 text-sm font-bold text-gray-400">
+        <p className="text-center mt-4">
+          <button type="button" onClick={() => setStaff(!staff)} className="text-[11px] font-bold text-gray-400 underline">
+            {staff ? "Commuter or driver sign-in" : "e-Tekisi staff? Sign in here"}
+          </button>
+        </p>
+
+        <p className="text-center mt-4 text-sm font-bold text-gray-400">
           New to e-Tekisi?{" "}
           <Link href="/register" className="text-black underline">
             Create account

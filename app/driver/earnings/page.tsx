@@ -83,7 +83,10 @@ export default function DriverEarnings() {
                 </div>
                 <div className="text-right">
                   <p className="font-black text-[#FFD217]">R{p.amount.toFixed(2)}</p>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{p.status}</p>
+                  <p className={`text-[9px] font-black uppercase tracking-widest ${p.status === "REJECTED" ? "text-red-400" : p.status === "PAID" ? "text-green-400" : "text-gray-400"}`}>
+                    {p.status === "REJECTED" ? "Declined · refunded" : p.status}
+                  </p>
+                  {p.rejectionReason && <p className="text-[10px] font-bold text-gray-500 max-w-[10rem]">{p.rejectionReason}</p>}
                 </div>
               </div>
             ))}
