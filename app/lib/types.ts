@@ -2,7 +2,7 @@
 // dto/api package (BookingDto, DriverDto, CommuterDto, ApiRecords).
 
 export type Role = "COMMUTER" | "DRIVER" | "OPERATOR" | "ADMIN";
-export type BookingStatus = "PENDING" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+export type BookingStatus = "PENDING" | "OFFERED" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
 export type LatLng = [number, number];
 
 export interface Booking {
@@ -15,7 +15,10 @@ export interface Booking {
   fare: number | null;
   tip: number | null;
   status: BookingStatus;
-  // Filled in only for the booking's own participants once a driver accepts.
+  /** While OFFERED: when the driver's offer lapses (ISO-8601). */
+  offerExpiresAt: string | null;
+  // Shared only with the booking's participants: names and plate once a driver
+  // makes an offer, phone numbers once the commuter accepts it.
   driverName: string | null;
   driverPhone: string | null;
   taxiPlate: string | null;

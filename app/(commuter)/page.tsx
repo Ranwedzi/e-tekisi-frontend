@@ -3,11 +3,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import ChatModal from "../components/ChatModal";
+import { Countdown } from "../components/Countdown";
 import { useAuthedSession } from "../components/RequireAuth";
 import { useConfirm, useToast } from "../components/Feedback";
 import { AlertIcon, ChatIcon, PhoneIcon } from "../components/Icons";
 import { CommuterNav, NotificationBell } from "../components/Nav";
-import { apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
+import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { buildRoutePolyline, geocodeLocation } from "../lib/geo";
 import { usePolling } from "../lib/usePolling";
 import { useGeolocation } from "../lib/useGeolocation";
@@ -47,7 +48,9 @@ export default function Home() {
   usePolling(async () => setNearbyTaxis(await apiFetch<DriverLocation[]>("/api/locations/nearby")), 15_000);
 
   const activeTrip = bookings.find((b) => b.status === "ACCEPTED") ?? null;
-  const waitingTrip = activeTrip ? null : bookings.find((b) => b.status === "PENDING") ?? null;
+  const offeredTrip = activeTrip ? null : bookings.find((b) => b.status === "OFFERED") ?? null;
+  const waitingTrip = activeTrip || offeredTrip ? null : bookings.find((b) => b.status === "PENDING") ?? null;
+  const [answering, setAnswering] = useState(false);
 
   // Draw the active trip's route. Keyed by trip so a stale route is never shown for a new trip.
   const pickup = activeTrip?.pickupLocation;
@@ -106,6 +109,31 @@ export default function Home() {
       await load();
     } catch (err) {
       toast.error(errorMessage(err));
+    }
+  };
+
+  const answerOffer = async (trip: Booking, accept: boolean) => {
+    setAnswering(true);
+    try {
+      if (accept) {
+        await apiFetch(`/api/bookings/${trip.id}/accept-offer`, { method: "PUT", idempotencyKey: newIdempotencyKey() });
+        toast.success(`Offer accepted. R${((trip.fare ?? 0) + (trip.tip ?? 0)).toFixed(2)} paid from your wallet.`);
+      } else {
+        await apiFetch(`/api/bookings/${trip.id}/decline-offer`, { method: "PUT" });
+        toast.info("Offer declined. We're still looking for a driver.");
+      }
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "INSUFFICIENT_FUNDS") {
+        toast.error(`Your wallet has R${Number(err.body?.balance ?? 0).toFixed(2)}. Top up, then accept before the offer expires.`);
+      } else if (err instanceof ApiError && err.code === "OFFER_NOT_AVAILABLE") {
+        toast.error("That offer has expired or was withdrawn.");
+        await load();
+      } else {
+        toast.error(errorMessage(err));
+      }
+    } finally {
+      setAnswering(false);
     }
   };
 
@@ -184,10 +212,54 @@ export default function Home() {
             {submitting ? "SENDING..." : "Request Taxi"}
           </button>
           <p className="text-[11px] font-bold text-gray-400 mt-4 text-center">
-            The driver sets the fare. It&apos;s paid from your wallet when they accept.
+            Drivers offer a fare. You only pay, from your wallet, when you accept one.
           </p>
         </form>
       </div>
+
+      {offeredTrip && (
+        <div className="fixed bottom-28 left-6 right-6 bg-white p-6 rounded-[32px] shadow-2xl border-2 border-[#FFD217] z-[2000] animate-bounce-in text-black">
+          <div className="flex justify-between items-start">
+            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">Fare offer</p>
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+              <Countdown until={offeredTrip.offerExpiresAt} />
+            </p>
+          </div>
+          <h3 className="font-black text-lg">
+            {offeredTrip.driverName ?? "A driver"}
+            {offeredTrip.taxiPlate ? ` · ${offeredTrip.taxiPlate}` : ""}
+          </h3>
+          <p className="text-xs font-bold text-gray-500">
+            {offeredTrip.pickupLocation} → {offeredTrip.destination}
+          </p>
+          <p className="text-3xl font-black mt-2">R{((offeredTrip.fare ?? 0) + (offeredTrip.tip ?? 0)).toFixed(2)}</p>
+          {wallet && wallet.balance < (offeredTrip.fare ?? 0) + (offeredTrip.tip ?? 0) && (
+            <p className="text-xs font-bold text-red-600 mt-1">
+              Your wallet has R{wallet.balance.toFixed(2)}.{" "}
+              <Link href="/wallet" className="underline">
+                Top up
+              </Link>{" "}
+              to accept.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <button
+              onClick={() => answerOffer(offeredTrip, false)}
+              disabled={answering}
+              className="py-4 bg-gray-100 font-black text-xs rounded-2xl uppercase tracking-widest disabled:opacity-60"
+            >
+              Decline
+            </button>
+            <button
+              onClick={() => answerOffer(offeredTrip, true)}
+              disabled={answering}
+              className="py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest disabled:opacity-60"
+            >
+              Accept &amp; pay
+            </button>
+          </div>
+        </div>
+      )}
 
       {waitingTrip && (
         <div className="fixed bottom-28 left-6 right-6 bg-white p-6 rounded-[32px] shadow-2xl border-2 border-gray-200 z-[2000] animate-bounce-in text-black">
@@ -195,7 +267,7 @@ export default function Home() {
           <h3 className="font-black text-lg">
             {waitingTrip.pickupLocation} → {waitingTrip.destination}
           </h3>
-          <p className="text-xs font-bold text-gray-400 mt-1">We&apos;ll notify you when a driver sets the fare.</p>
+          <p className="text-xs font-bold text-gray-400 mt-1">You&apos;ll see a driver&apos;s fare offer here. Nothing is charged until you accept it.</p>
           <button onClick={() => handleCancel(waitingTrip)} className="w-full mt-4 py-3 bg-red-50 text-red-500 font-black text-[10px] rounded-2xl uppercase tracking-widest active:bg-red-100 transition">
             Cancel Request
           </button>

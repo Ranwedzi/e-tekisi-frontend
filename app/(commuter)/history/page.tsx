@@ -9,6 +9,7 @@ import type { Booking, BookingStatus } from "../../lib/types";
 
 const STATUS_STYLE: Record<BookingStatus, string> = {
   PENDING: "bg-gray-100 text-gray-600",
+  OFFERED: "bg-blue-50 text-blue-700",
   ACCEPTED: "bg-yellow-100 text-yellow-700",
   COMPLETED: "bg-green-100 text-green-700",
   CANCELLED: "bg-red-50 text-red-500",
