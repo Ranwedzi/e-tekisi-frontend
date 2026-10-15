@@ -5,7 +5,7 @@ import type { Booking } from "../lib/types";
 const MAX_FARE = 1000; // matches the backend's tekisi.booking.max-fare default
 const QUICK_FARES = [15, 20, 25, 30];
 
-/** Asks the driver for a fare before accepting a booking. */
+/** Asks the driver for the fare to offer. The commuter has to accept it before anything is charged. */
 export function FareDialog({
   booking,
   busy,
@@ -33,7 +33,7 @@ export function FareDialog({
   return (
     <div className="fixed inset-0 bg-black/80 z-[3000] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="fare-title">
       <form onSubmit={submit} className="w-full max-w-sm bg-[#262626] text-white rounded-[32px] p-6 shadow-2xl border border-[#333]">
-        <h2 id="fare-title" className="text-xl font-black mb-1">Set your fare</h2>
+        <h2 id="fare-title" className="text-xl font-black mb-1">Offer a fare</h2>
         <p className="text-sm font-bold text-gray-400 mb-6">
           {booking.pickupLocation} → {booking.destination}
           {booking.tip ? ` · includes R${booking.tip.toFixed(2)} tip on top` : ""}
@@ -69,14 +69,14 @@ export function FareDialog({
           placeholder="0.00"
         />
         {error && <p role="alert" className="text-sm font-bold text-red-400 mt-2 ml-2">{error}</p>}
-        <p className="text-[11px] font-bold text-gray-500 mt-3 ml-2">The commuter&apos;s wallet is charged when you accept.</p>
+        <p className="text-[11px] font-bold text-gray-500 mt-3 ml-2">The commuter has 2 minutes to accept. Nothing is charged until they do.</p>
 
         <div className="grid grid-cols-2 gap-3 mt-6">
           <button type="button" onClick={onCancel} className="py-4 rounded-2xl bg-[#333] font-black text-xs uppercase tracking-widest">
             Back
           </button>
           <button type="submit" disabled={busy} className="py-4 rounded-2xl bg-[#FFD217] text-black font-black text-xs uppercase tracking-widest disabled:opacity-60">
-            {busy ? "Accepting..." : "Accept trip"}
+            {busy ? "Sending..." : "Send offer"}
           </button>
         </div>
       </form>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import ChatModal from "../components/ChatModal";
+import { Countdown } from "../components/Countdown";
 import { FareDialog } from "../components/FareDialog";
 import { useAuthedSession } from "../components/RequireAuth";
 import { useConfirm, useToast } from "../components/Feedback";
@@ -53,6 +54,7 @@ export default function DriverDashboard() {
   );
 
   const activeTrips = myTrips.filter((b) => b.status === "ACCEPTED");
+  const myOffers = myTrips.filter((b) => b.status === "OFFERED");
 
   const toggleOnline = async () => {
     if (!driver) return;
@@ -66,22 +68,23 @@ export default function DriverDashboard() {
     }
   };
 
-  const accept = async (booking: Booking, fare: number) => {
+  // The commuter is only charged once they accept this exact fare.
+  const sendOffer = async (booking: Booking, fare: number) => {
     setBusy(true);
     try {
-      const accepted = await apiFetch<Booking>(`/api/bookings/${booking.id}/accept/${session.userId}`, {
+      const offered = await apiFetch<Booking>(`/api/bookings/${booking.id}/offer`, {
         method: "PUT",
         query: { fare },
         idempotencyKey: newIdempotencyKey(),
       });
-      toast.success(`Trip accepted. ${accepted.commuterName ?? "The commuter"} has paid R${((accepted.fare ?? 0) + (accepted.tip ?? 0)).toFixed(2)}.`);
+      toast.success(`Offer of R${((offered.fare ?? 0) + (offered.tip ?? 0)).toFixed(2)} sent. Waiting for ${offered.commuterName ?? "the commuter"} to accept.`);
       setFareFor(null);
     } catch (err) {
-      if (err instanceof ApiError && err.code === "INSUFFICIENT_FUNDS") {
-        const balance = Number(err.body?.balance ?? 0);
-        toast.error(`The commuter's wallet only has R${balance.toFixed(2)}. They've been asked to top up; try a lower fare or wait.`);
-      } else if (err instanceof ApiError && err.code === "BOOKING_NOT_PENDING") {
-        toast.error("Another driver already took this trip.");
+      if (err instanceof ApiError && err.code === "BOOKING_NOT_PENDING") {
+        toast.error("Another driver already made an offer on this trip.");
+        setFareFor(null);
+      } else if (err instanceof ApiError && err.code === "DRIVER_OFFLINE") {
+        toast.error("Go online to send offers.");
         setFareFor(null);
       } else {
         toast.error(errorMessage(err));
@@ -99,6 +102,17 @@ export default function DriverDashboard() {
     } catch (err) {
       toast.error(errorMessage(err));
       await load().catch(() => undefined);
+    }
+  };
+
+  const withdraw = async (offer: Booking) => {
+    if (!(await confirm({ title: "Withdraw your offer?", message: "The trip goes back to other drivers.", confirmLabel: "Withdraw" }))) return;
+    try {
+      await apiFetch(`/api/bookings/${offer.id}/cancel`, { method: "PUT" });
+      toast.success("Offer withdrawn.");
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   };
 
@@ -186,6 +200,31 @@ export default function DriverDashboard() {
         </Link>
       </div>
 
+      {myOffers.length > 0 && (
+        <section className="px-6 mb-8">
+          <h3 className="font-black text-lg mb-4 uppercase tracking-tighter">Your Offers</h3>
+          <div className="space-y-4">
+            {myOffers.map((o) => (
+              <div key={o.id} className="bg-[#262626] p-6 rounded-[32px] border-l-8 border-green-500 shadow-xl">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-[10px] font-black text-green-400 uppercase tracking-widest">Waiting for {o.commuterName ?? "commuter"}</p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <Countdown until={o.offerExpiresAt} expiredLabel="Expiring" />
+                  </p>
+                </div>
+                <p className="font-black text-lg leading-tight mb-1">
+                  {o.pickupLocation} → {o.destination}
+                </p>
+                <p className="text-sm font-bold text-[#FFD217] mb-4">R{((o.fare ?? 0) + (o.tip ?? 0)).toFixed(2)}</p>
+                <button onClick={() => withdraw(o)} className="w-full bg-[#333] text-gray-300 font-black py-3 rounded-2xl text-xs uppercase">
+                  Withdraw offer
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="px-6">
         <h3 className="font-black text-lg mb-4 uppercase tracking-tighter">Incoming Requests</h3>
         {!isOnline && <p className="text-sm font-bold text-gray-500 mb-4">Go online to start taking trips.</p>}
@@ -201,7 +240,7 @@ export default function DriverDashboard() {
                 {b.tip ? <p className="text-xs font-bold text-green-400 mb-4">+ R{b.tip.toFixed(2)} tip</p> : <div className="mb-4" />}
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setFareFor(b)} className="bg-white text-black font-black py-4 rounded-2xl text-xs uppercase shadow-lg">
-                    Accept
+                    Offer fare
                   </button>
                   <button onClick={() => decline(b)} className="bg-[#333] text-gray-400 font-black py-4 rounded-2xl text-xs uppercase">
                     Decline
@@ -249,7 +288,7 @@ export default function DriverDashboard() {
         </div>
       )}
 
-      {fareFor && <FareDialog booking={fareFor} busy={busy} onSubmit={(fare) => accept(fareFor, fare)} onCancel={() => setFareFor(null)} />}
+      {fareFor && <FareDialog booking={fareFor} busy={busy} onSubmit={(fare) => sendOffer(fareFor, fare)} onCancel={() => setFareFor(null)} />}
       {showChat && activeTrip && <ChatModal bookingId={activeTrip.id} title="Chat with commuter" onClose={() => setShowChat(false)} />}
 
       <DriverNav current="dashboard" />
