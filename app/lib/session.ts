@@ -64,7 +64,9 @@ export function clearSession() {
 }
 
 export function homeFor(role: Role): string {
-  return role === "DRIVER" ? "/driver" : "/";
+  if (role === "DRIVER") return "/driver";
+  if (role === "OPERATOR" || role === "ADMIN") return "/ops";
+  return "/";
 }
 
 function subscribe(onChange: () => void) {
