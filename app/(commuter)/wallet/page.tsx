@@ -7,7 +7,7 @@ import { BackIcon } from "../../components/Icons";
 import { Spinner } from "../../components/Spinner";
 import { ApiError, apiFetch, errorMessage } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
-import type { Wallet } from "../../lib/types";
+import type { Wallet, TopUpLimits } from "../../lib/types";
 
 const MIN_TOPUP = 10;
 const MAX_TOPUP = 2000;
@@ -19,7 +19,15 @@ export default function WalletPage() {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const fetchWallet = async () => setWallet(await apiFetch<Wallet>(`/api/wallet/${session.userId}`));
+  const [limits, setLimits] = useState<TopUpLimits | null>(null);
+  const fetchWallet = async () => {
+    const [w, l] = await Promise.all([
+      apiFetch<Wallet>(`/api/wallet/${session.userId}`),
+      apiFetch<TopUpLimits>(`/api/wallet/${session.userId}/limits`).catch(() => null),
+    ]);
+    setWallet(w);
+    setLimits(l);
+  };
   usePolling(fetchWallet, 15_000);
 
   const handleTopUp = async (e: FormEvent) => {
@@ -34,6 +42,7 @@ export default function WalletPage() {
       const updated = await apiFetch<Wallet>(`/api/wallet/${session.userId}/topup`, { method: "POST", query: { amount: numAmount } });
       setWallet(updated);
       toast.success(`R${numAmount.toFixed(2)} added to your wallet.`);
+      void fetchWallet().catch(() => {}); // the limits changed too
       setAmount("");
     } catch (err) {
       toast.error(err instanceof ApiError && err.code === "TOPUP_DISABLED" ? "Top-ups aren't available yet." : errorMessage(err));
@@ -93,6 +102,14 @@ export default function WalletPage() {
         />
         <p className="text-[11px] font-bold text-gray-400 -mt-4 ml-2">
           R{MIN_TOPUP}–R{MAX_TOPUP} per top-up.
+          {limits && (
+            <>
+              {" "}
+              You can add R{Math.min(limits.topUpToday, limits.walletRoom).toFixed(2)} more today
+              {limits.topUpsLeftToday < 5 ? ` (${limits.topUpsLeftToday} top-up${limits.topUpsLeftToday === 1 ? "" : "s"} left)` : ""}; a
+              wallet holds up to R{limits.maxWalletBalance.toFixed(0)}.
+            </>
+          )}
         </p>
         <button
           type="submit"

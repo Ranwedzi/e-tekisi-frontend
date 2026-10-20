@@ -127,6 +127,26 @@ export interface PayoutOps {
   processedBy: number | null;
   reference: string | null;
   rejectionReason: string | null;
+  /** The payment-risk check held it: approving needs acknowledgeRisk. */
+  riskHold: boolean;
+  riskReasons: string | null;
+  riskClearedBy: number | null;
+}
+
+/** GET /api/wallet/{id}/limits */
+export interface TopUpLimits {
+  topUpToday: number;
+  topUpsLeftToday: number;
+  walletRoom: number;
+  dailyTopUpLimit: number;
+  maxWalletBalance: number;
+}
+
+/** GET /api/payouts/driver/{id}/limits */
+export interface PayoutLimits {
+  payoutToday: number;
+  payoutsLeftToday: number;
+  dailyPayoutLimit: number;
 }
 
 export interface Insight {

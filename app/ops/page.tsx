@@ -82,9 +82,15 @@ function Payouts() {
   };
 
   const approve = async (p: PayoutOps) => {
-    if (await confirm({ title: `Approve R${p.amount.toFixed(2)} to ${p.driverName ?? "driver"}?`, confirmLabel: "Approve" })) {
-      await act(p, "approve", undefined, "Approved.");
-    }
+    const held = p.riskHold && !p.riskClearedBy;
+    const ok = await confirm({
+      title: `Approve R${p.amount.toFixed(2)} to ${p.driverName ?? "driver"}?`,
+      message: held
+        ? `This payout was held by the risk check (${p.riskReasons}). Approve it only after checking the driver's trips and the account it goes to. Your name is recorded against this decision.`
+        : undefined,
+      confirmLabel: held ? "I've checked it: approve" : "Approve",
+    });
+    if (ok) await act(p, "approve", held ? { acknowledgeRisk: true } : undefined, "Approved.");
   };
 
   return (
@@ -180,6 +186,11 @@ function PayoutCard({
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{p.status}</p>
         </div>
       </div>
+      {p.riskHold && (
+        <p className={`mt-3 p-3 rounded-xl text-xs font-bold ${p.riskClearedBy ? "bg-gray-50 text-gray-500" : "bg-orange-50 text-orange-800"}`} role="note">
+          {p.riskClearedBy ? `Risk hold cleared by operator #${p.riskClearedBy}` : "Held for review"}: {p.riskReasons}
+        </p>
+      )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mt-3">
         <dt className="font-bold text-gray-400">Method</dt>
         <dd className="font-bold">{METHOD_LABEL[p.method] ?? p.method}</dd>
