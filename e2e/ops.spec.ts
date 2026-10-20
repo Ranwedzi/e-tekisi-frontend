@@ -19,5 +19,5 @@ test("an operator signs in through the staff link and lands on /ops", async ({ p
   await page.getByRole("tab", { name: "Payouts" }).click();
   await expect(page.getByRole("tab", { name: "Payouts" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Safety alerts" }).click();
-  await expect(page.getByText(/No critical alerts|SAFETY PANIC|Safety panic/i).first()).toBeVisible();
+  await expect(page.getByText(/No alerts waiting|No critical alerts|SAFETY PANIC|Safety panic/i).first()).toBeVisible();
 });
