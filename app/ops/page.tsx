@@ -3,10 +3,10 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm, useToast } from "../components/Feedback";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
-import { apiFetch, errorMessage } from "../lib/api";
+import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
 import { clearSession } from "../lib/session";
 import { usePolling } from "../lib/usePolling";
-import type { DriverApproval, DriverReview, Insight, PayoutOps, PayoutStatus } from "../lib/types";
+import type { DocumentSummary, DriverApproval, DriverReview, DriverDocument, Insight, PayoutOps, PayoutStatus } from "../lib/types";
 
 const FILTERS: (PayoutStatus | "ALL")[] = ["PENDING", "APPROVED", "PAID", "REJECTED", "ALL"];
 const METHOD_LABEL: Record<string, string> = {
@@ -284,7 +284,7 @@ function Drivers() {
   const approve = async (d: DriverReview) => {
     const ok = await confirm({
       title: `Approve ${d.fullName}?`,
-      message: "Only approve once you've checked their driver's licence, PrDP and operating permit for this vehicle.",
+      message: "Their required documents must be accepted first. Approve only if the details match the documents.",
       confirmLabel: "Approve",
     });
     if (ok) await act(d, "approve");
@@ -340,6 +340,7 @@ function Drivers() {
                   </>
                 )}
               </dl>
+              <Documents driverId={d.id} />
               {rejecting === d.id ? (
                 <form
                   onSubmit={(e) => {
@@ -388,6 +389,132 @@ function Drivers() {
         </div>
       )}
     </section>
+  );
+}
+
+/** The driver's uploaded documents: open each, then accept (checking the expiry date) or reject with a reason. */
+function Documents({ driverId }: { driverId: number }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<DocumentSummary | null>(null);
+  const [expiry, setExpiry] = useState<Record<number, string>>({});
+  const [rejecting, setRejecting] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => setData(await apiFetch<DocumentSummary>(`/api/ops/drivers/${driverId}/documents`));
+
+  const act = async (doc: DriverDocument, action: "accept" | "reject") => {
+    setBusy(true);
+    try {
+      const body = action === "accept" ? { expiresOn: expiry[doc.id] || doc.expiresOn || null } : { reason: reason.trim() };
+      await apiFetch(`/api/ops/documents/${doc.id}/${action}`, { method: "PUT", body });
+      toast.success(action === "accept" ? `${doc.label} accepted.` : `${doc.label} rejected; the driver was told why.`);
+      setRejecting(null);
+      setReason("");
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => {
+          setOpen(true);
+          void load().catch((e) => toast.error(errorMessage(e)));
+        }}
+        className="mt-3 text-xs font-black uppercase underline text-gray-500"
+      >
+        Documents
+      </button>
+    );
+  }
+  if (!data) return <p className="mt-3 text-xs font-bold text-gray-400">Loading documents…</p>;
+  const shown = data.items.filter((x) => x.status !== "SUPERSEDED");
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3 space-y-2" aria-label="Documents">
+      <p className={`text-xs font-black ${data.missing.length ? "text-red-600" : "text-green-700"}`}>
+        {data.missing.length ? `Still needed: ${data.missing.join(", ").replaceAll("_", " ").toLowerCase()}` : "All required documents accepted."}
+      </p>
+      {shown.length === 0 && <p className="text-xs font-bold text-gray-400">Nothing uploaded yet.</p>}
+      {shown.map((doc) => (
+        <div key={doc.id} className="bg-gray-50 rounded-xl p-3 text-sm">
+          <div className="flex justify-between gap-2">
+            <p className="font-black">{doc.label}</p>
+            <p className="text-[10px] font-black uppercase text-gray-500">{doc.status}</p>
+          </div>
+          <p className="text-xs font-bold text-gray-500">
+            {doc.fileName} · {(doc.sizeBytes / 1024).toFixed(0)} KB · uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+            {doc.expiresOn ? ` · expires ${doc.expiresOn}` : ""}
+          </p>
+          {doc.reviewNote && <p className="text-xs font-bold text-red-600">Reason: {doc.reviewNote}</p>}
+          <div className="flex flex-wrap gap-2 mt-2 items-center">
+            <button
+              onClick={() => openProtectedFile(`/api/ops/documents/${doc.id}/file`).catch((e) => toast.error(errorMessage(e)))}
+              className="px-3 py-2 rounded-lg bg-white border border-gray-200 font-black text-[11px] uppercase"
+            >
+              View
+            </button>
+            {doc.status === "SUBMITTED" && rejecting !== doc.id && (
+              <>
+                <label className="text-[11px] font-bold text-gray-500 flex items-center gap-1">
+                  Expires
+                  <input
+                    type="date"
+                    aria-label={`Expiry date of ${doc.label}`}
+                    value={expiry[doc.id] ?? doc.expiresOn ?? ""}
+                    onChange={(e) => setExpiry({ ...expiry, [doc.id]: e.target.value })}
+                    className="p-1 rounded border border-gray-200"
+                  />
+                </label>
+                <button disabled={busy} onClick={() => act(doc, "accept")} className="px-3 py-2 rounded-lg bg-black text-[#FFD217] font-black text-[11px] uppercase disabled:opacity-50">
+                  Accept
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setRejecting(doc.id);
+                    setReason("");
+                  }}
+                  className="px-3 py-2 rounded-lg bg-red-50 text-red-600 font-black text-[11px] uppercase disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              </>
+            )}
+          </div>
+          {rejecting === doc.id && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (reason.trim()) void act(doc, "reject");
+              }}
+              className="flex gap-2 mt-2"
+            >
+              <input
+                autoFocus
+                value={reason}
+                maxLength={300}
+                onChange={(e) => setReason(e.target.value)}
+                aria-label={`Reason for rejecting ${doc.label}`}
+                placeholder="Reason (the driver sees this)"
+                className="flex-1 min-w-0 p-2 rounded-lg border border-gray-200 text-sm font-bold"
+              />
+              <button type="submit" disabled={busy || !reason.trim()} className="px-3 rounded-lg bg-red-600 text-white font-black text-[11px] uppercase disabled:opacity-50">
+                Reject
+              </button>
+              <button type="button" onClick={() => setRejecting(null)} className="px-3 rounded-lg bg-gray-100 font-black text-[11px] uppercase">
+                Back
+              </button>
+            </form>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

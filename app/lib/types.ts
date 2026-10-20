@@ -204,6 +204,36 @@ export interface LoginResponse {
   message?: string;
 }
 
+export type DocumentType =
+  | "DRIVERS_LICENCE"
+  | "PRDP"
+  | "OPERATING_LICENCE"
+  | "ROADWORTHY"
+  | "VEHICLE_PHOTO"
+  | "ID_DOCUMENT"
+  | "OTHER";
+
+export interface DriverDocument {
+  id: number;
+  type: DocumentType;
+  label: string;
+  status: "SUBMITTED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "SUPERSEDED";
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  expiresOn: string | null;
+  reviewNote: string | null;
+  uploadedAt: string;
+  reviewedAt: string | null;
+}
+
+/** GET /api/me/documents and /api/ops/drivers/{id}/documents */
+export interface DocumentSummary {
+  required: DocumentType[];
+  missing: DocumentType[];
+  items: DriverDocument[];
+}
+
 /** GET /api/me/status */
 export interface AccountStatus {
   verified: boolean;

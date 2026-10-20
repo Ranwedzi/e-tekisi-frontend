@@ -1,0 +1,171 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { BackIcon } from "../../components/Icons";
+import { Spinner } from "../../components/Spinner";
+import { useToast } from "../../components/Feedback";
+import { apiFetch, errorMessage, openProtectedFile } from "../../lib/api";
+import { usePolling } from "../../lib/usePolling";
+import type { DocumentSummary, DocumentType, DriverDocument } from "../../lib/types";
+
+const LABEL: Record<DocumentType, string> = {
+  DRIVERS_LICENCE: "Driver's licence",
+  PRDP: "Professional driving permit (PrDP)",
+  OPERATING_LICENCE: "Operating licence",
+  ROADWORTHY: "Roadworthy certificate",
+  VEHICLE_PHOTO: "Photo of your taxi",
+  ID_DOCUMENT: "ID document",
+  OTHER: "Other",
+};
+const HAS_EXPIRY: DocumentType[] = ["DRIVERS_LICENCE", "PRDP", "OPERATING_LICENCE", "ROADWORTHY"];
+const OPTIONAL: DocumentType[] = ["ROADWORTHY", "VEHICLE_PHOTO"];
+
+const STATUS_TEXT: Record<DriverDocument["status"], string> = {
+  SUBMITTED: "Waiting for review",
+  ACCEPTED: "Accepted",
+  REJECTED: "Not accepted",
+  EXPIRED: "Expired",
+  SUPERSEDED: "Replaced",
+};
+
+/** Upload the documents operators check before a driver can take trips. */
+export default function DriverDocumentsPage() {
+  const [data, setData] = useState<DocumentSummary | null>(null);
+  const load = async () => setData(await apiFetch<DocumentSummary>("/api/me/documents"));
+  usePolling(load, 30_000);
+
+  if (!data) return <Spinner dark />;
+  const types = [...data.required, ...OPTIONAL.filter((t) => !data.required.includes(t))];
+
+  return (
+    <div className="min-h-screen bg-[#1A1A1A] text-white font-sans p-6 pb-32">
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/driver" className="p-3 bg-[#262626] rounded-2xl text-[#FFD217] active:scale-90 transition shadow-lg border border-[#333]" aria-label="Back">
+          <BackIcon />
+        </Link>
+        <h1 className="text-2xl font-black uppercase tracking-tighter">My Documents</h1>
+      </div>
+      <p className="text-sm font-bold text-gray-400 mb-6">
+        {data.missing.length === 0
+          ? "All required documents are accepted."
+          : "Take a clear photo of each document, or upload a PDF. Operators check them before you can take trips. Files are stored encrypted and only e-Tekisi operators can see them."}
+      </p>
+      <div className="space-y-4">
+        {types.map((t) => (
+          <DocumentRow
+            key={t}
+            type={t}
+            required={data.required.includes(t)}
+            current={data.items.find((d) => d.type === t && d.status !== "SUPERSEDED")}
+            onChanged={load}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DocumentRow({
+  type,
+  required,
+  current,
+  onChanged,
+}: {
+  type: DocumentType;
+  required: boolean;
+  current?: DriverDocument;
+  onChanged: () => Promise<void>;
+}) {
+  const toast = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [expiresOn, setExpiresOn] = useState("");
+  const [busy, setBusy] = useState(false);
+  const needsUpload = !current || current.status === "REJECTED" || current.status === "EXPIRED";
+
+  const upload = async () => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("That file is over 5 MB. Take the photo again at a lower resolution.");
+      return;
+    }
+    const form = new FormData();
+    form.append("type", type);
+    form.append("file", file);
+    if (expiresOn) form.append("expiresOn", expiresOn);
+    setBusy(true);
+    try {
+      await apiFetch("/api/me/documents", { method: "POST", body: form });
+      toast.success(`${LABEL[type]} uploaded.`);
+      setFile(null);
+      setExpiresOn("");
+      await onChanged();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tone =
+    current?.status === "ACCEPTED"
+      ? "text-green-400"
+      : current?.status === "REJECTED" || current?.status === "EXPIRED"
+        ? "text-red-400"
+        : "text-[#FFD217]";
+
+  return (
+    <section className="bg-[#262626] border border-[#333] rounded-[24px] p-5" aria-label={LABEL[type]}>
+      <div className="flex justify-between items-start gap-3">
+        <div>
+          <p className="font-black">{LABEL[type]}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{required ? "Required" : "Optional"}</p>
+        </div>
+        <p className={`text-xs font-black uppercase ${tone}`}>{current ? STATUS_TEXT[current.status] : "Not uploaded"}</p>
+      </div>
+      {current && (
+        <div className="mt-3 text-xs font-bold text-gray-400 space-y-1">
+          <p>
+            {current.fileName}
+            {current.expiresOn ? ` · expires ${current.expiresOn}` : ""}{" "}
+            <button onClick={() => openProtectedFile(`/api/me/documents/${current.id}/file`).catch((e) => toast.error(errorMessage(e)))} className="underline text-gray-300">
+              View
+            </button>
+          </p>
+          {current.reviewNote && <p className="text-red-300">Reason: {current.reviewNote}</p>}
+        </div>
+      )}
+      {(needsUpload || current?.status === "SUBMITTED") && (
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="sr-only">{`Choose ${LABEL[type]} file`}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              capture="environment"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-xs font-bold text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-[#FFD217] file:text-black file:font-black"
+            />
+          </label>
+          {HAS_EXPIRY.includes(type) && (
+            <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
+              Expiry date
+              <input
+                type="date"
+                value={expiresOn}
+                onChange={(e) => setExpiresOn(e.target.value)}
+                className="p-2 rounded-xl bg-[#1A1A1A] border border-[#333] text-white"
+              />
+            </label>
+          )}
+          <button
+            onClick={upload}
+            disabled={!file || busy}
+            className="w-full py-3 rounded-2xl bg-[#FFD217] text-black font-black text-xs uppercase disabled:opacity-40"
+          >
+            {busy ? "Uploading…" : current?.status === "SUBMITTED" ? "Replace" : "Upload"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}

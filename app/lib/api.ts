@@ -51,7 +51,9 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
   const { method = "GET", body, query, idempotencyKey, auth = true, signal } = opts;
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // FormData (file uploads) sets its own multipart Content-Type with the boundary.
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   if (auth) {
     const session = getSession();
@@ -78,7 +80,7 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
     res = await fetch(url, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
       signal,
     });
   } catch (e) {
@@ -116,6 +118,42 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
     );
   }
   return data as T;
+}
+
+/** Downloads a protected file (e.g. a driver document) as a Blob, with the signed-in user's token. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const session = getSession();
+  if (!session) {
+    clearSession();
+    redirectToLogin("expired");
+    throw new ApiError("Please sign in again.", 401, "UNAUTHENTICATED");
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${session.token}` } });
+  } catch {
+    throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
+  }
+  if (res.status === 401) {
+    clearSession();
+    redirectToLogin("expired");
+  }
+  if (!res.ok) throw new ApiError(res.status === 404 ? "That file isn't available." : `Request failed (${res.status})`, res.status);
+  return res.blob();
+}
+
+/** Opens a protected file in a new tab (the tab is opened first so pop-up blockers allow it). */
+export async function openProtectedFile(path: string) {
+  const tab = window.open("", "_blank");
+  try {
+    const url = URL.createObjectURL(await apiBlob(path));
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) {
+    tab?.close();
+    throw e;
+  }
 }
 
 /** A readable message for any thrown value. */
