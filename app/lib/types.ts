@@ -139,6 +139,9 @@ export interface Insight {
   driverId: number | null;
   commuterId: number | null;
   createdAt: string | null;
+  acknowledgedAt: string | null;
+  acknowledgedBy: number | null;
+  acknowledgedNote: string | null;
 }
 
 export interface AppNotification {

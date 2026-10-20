@@ -397,32 +397,120 @@ function Poller({ fn }: { fn: () => Promise<void> }) {
   return null;
 }
 
+/** CRITICAL safety alerts. Acknowledging one tells the team (and monitoring) someone is handling it. */
 function Alerts() {
+  const toast = useToast();
+  const [open, setOpen] = useState(true);
   const [items, setItems] = useState<Insight[] | null>(null);
-  usePolling(async () => {
-    const res = await apiFetch<{ items: Insight[] }>("/api/insights", { query: { severity: "CRITICAL", size: 30 } });
-    setItems(res.items);
-  }, 15_000);
+  const [acking, setAcking] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  if (items === null) return <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>;
-  if (items.length === 0) return <p className="text-center py-10 text-gray-400 font-bold">No critical alerts.</p>;
+  const load = async () => {
+    const res = await apiFetch<{ items: Insight[] }>("/api/insights", {
+      query: { severity: "CRITICAL", size: 30, acknowledged: open ? false : undefined },
+    });
+    setItems(res.items);
+  };
+
+  const acknowledge = async (e: FormEvent, i: Insight) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await apiFetch(`/api/insights/${i.id}/ack`, { method: "PUT", body: { note: note.trim() || null } });
+      toast.success("Alert acknowledged.");
+      setAcking(null);
+      setNote("");
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="space-y-3">
-      {items.map((i) => (
-        <div key={i.id} className="bg-white p-5 rounded-[24px] border-l-8 border-red-600 shadow-sm flex gap-4">
-          <div className="text-red-600 shrink-0">
-            <AlertIcon />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-600">{i.code.replaceAll("_", " ")}</p>
-            <p className="font-bold text-sm">{i.message}</p>
-            <p className="text-[11px] font-bold text-gray-400 mt-1">
-              {i.bookingId ? `Booking #${i.bookingId} · ` : ""}
-              {i.createdAt ? new Date(i.createdAt).toLocaleString() : ""}
-            </p>
-          </div>
+    <section>
+      <div className="flex gap-2 mb-4">
+        {[true, false].map((o) => (
+          <button
+            key={String(o)}
+            onClick={() => {
+              setOpen(o);
+              setItems(null);
+            }}
+            className={`px-4 py-2 rounded-full text-[11px] font-black uppercase ${open === o ? "bg-[#FFD217] text-black" : "bg-white text-gray-400 border border-gray-200"}`}
+          >
+            {o ? "Needs action" : "All"}
+          </button>
+        ))}
+      </div>
+      <Poller key={String(open)} fn={load} />
+      {items === null ? (
+        <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>
+      ) : items.length === 0 ? (
+        <p className="text-center py-10 text-gray-400 font-bold">
+          {open ? "No alerts waiting for someone to pick them up." : "No critical alerts."}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((i) => (
+            <div
+              key={i.id}
+              className={`bg-white p-5 rounded-[24px] border-l-8 shadow-sm flex gap-4 ${i.acknowledgedAt ? "border-gray-300" : "border-red-600"}`}
+            >
+              <div className={`shrink-0 ${i.acknowledgedAt ? "text-gray-400" : "text-red-600"}`}>
+                <AlertIcon />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[10px] font-black uppercase tracking-widest ${i.acknowledgedAt ? "text-gray-400" : "text-red-600"}`}>
+                  {i.code.replaceAll("_", " ")}
+                </p>
+                <p className="font-bold text-sm">{i.message}</p>
+                <p className="text-[11px] font-bold text-gray-400 mt-1">
+                  {i.bookingId ? `Booking #${i.bookingId} · ` : ""}
+                  {i.createdAt ? new Date(i.createdAt).toLocaleString() : ""}
+                </p>
+                {i.acknowledgedAt ? (
+                  <p className="text-[11px] font-bold text-green-700 mt-2">
+                    Acknowledged by operator #{i.acknowledgedBy} · {new Date(i.acknowledgedAt).toLocaleString()}
+                    {i.acknowledgedNote ? ` · ${i.acknowledgedNote}` : ""}
+                  </p>
+                ) : acking === i.id ? (
+                  <form onSubmit={(e) => acknowledge(e, i)} className="flex gap-2 mt-3">
+                    <input
+                      autoFocus
+                      value={note}
+                      maxLength={300}
+                      onChange={(e) => setNote(e.target.value)}
+                      aria-label="What you're doing about it"
+                      placeholder="What you're doing (optional)"
+                      className="flex-1 min-w-0 p-3 bg-gray-50 rounded-xl outline-none font-bold text-sm border border-gray-200"
+                    />
+                    <button type="submit" disabled={busy} className="px-4 rounded-xl bg-black text-[#FFD217] font-black text-xs uppercase disabled:opacity-60">
+                      Acknowledge
+                    </button>
+                    <button type="button" onClick={() => setAcking(null)} className="px-3 rounded-xl bg-gray-100 font-black text-xs uppercase">
+                      Back
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setAcking(i.id);
+                      setNote("");
+                    }}
+                    className="mt-3 px-4 py-3 rounded-xl bg-red-600 text-white font-black text-xs uppercase"
+                  >
+                    I&apos;m handling this
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </section>
   );
 }
