@@ -63,7 +63,7 @@ export default function Register() {
         auth: false,
         body,
       });
-      router.push("/login?registered=1");
+      router.push(role === "DRIVER" ? "/login?registered=driver" : "/login?registered=1");
     } catch (err) {
       if (err instanceof ApiError && err.fieldErrors) {
         setErrors(err.fieldErrors as Partial<Record<Field, string>>);

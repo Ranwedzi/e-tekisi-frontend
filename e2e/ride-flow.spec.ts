@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { runId, signIn, signUpCommuter, signUpDriver } from "./helpers";
+import { approveDriver, OPS_EMAIL, OPS_PASSWORD, runId, signIn, signUpCommuter, signUpDriver } from "./helpers";
 
 /**
  * The whole money path, as two people on two phones:
@@ -8,12 +8,14 @@ import { runId, signIn, signUpCommuter, signUpDriver } from "./helpers";
  * requests a payout.
  */
 test("commuter books, driver offers, commuter accepts, driver completes and cashes out", async ({ browser, request }) => {
+  test.skip(!OPS_EMAIL || !OPS_PASSWORD, "Needs E2E_OPS_EMAIL / E2E_OPS_PASSWORD to approve the new driver.");
   const id = runId();
   const commuterEmail = `e2e-c-${id}@example.test`;
   const driverEmail = `e2e-d-${id}@example.test`;
   const pickup = `E2E Rank ${id}`;
   await signUpCommuter(request, commuterEmail);
   await signUpDriver(request, driverEmail, `E2E${id.slice(-6)}`);
+  await approveDriver(request, driverEmail);
 
   // Separate browser contexts = separate phones (separate sign-ins).
   const commuterCtx = await browser.newContext();

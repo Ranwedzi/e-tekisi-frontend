@@ -38,7 +38,9 @@ function LoginForm() {
       ? "Your session has ended. Please sign in again."
       : params.get("registered") === "1"
         ? "Account created. You can sign in now."
-        : null;
+        : params.get("registered") === "driver"
+          ? "Account created. Sign in to see your status: we check your details before you can take trips."
+          : null;
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();

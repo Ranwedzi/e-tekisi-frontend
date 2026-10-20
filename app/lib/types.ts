@@ -56,6 +56,27 @@ export interface Driver {
   balance: number;
   tripsCompleted: number;
   active: boolean;
+  approvalStatus: DriverApproval;
+  /** Operator's reason when REJECTED. */
+  approvalNote: string | null;
+}
+
+export type DriverApproval = "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+
+/** A driver as operators review them (staff-only /api/ops/drivers). */
+export interface DriverReview {
+  id: number;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  taxiPlate: string;
+  licenseNumber: string;
+  approvalStatus: DriverApproval;
+  approvalNote: string | null;
+  registeredAt: string | null;
+  approvalDecidedAt: string | null;
+  approvalDecidedBy: number | null;
+  tripsCompleted: number;
 }
 
 export interface Wallet {

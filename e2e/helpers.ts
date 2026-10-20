@@ -20,6 +20,24 @@ export async function signUpDriver(request: APIRequestContext, email: string, pl
   expect(res.ok(), await res.text()).toBeTruthy();
 }
 
+export const OPS_EMAIL = process.env.E2E_OPS_EMAIL;
+export const OPS_PASSWORD = process.env.E2E_OPS_PASSWORD;
+
+/** New drivers can't take trips until approved; do what an operator would on /ops. */
+export async function approveDriver(request: APIRequestContext, driverEmail: string) {
+  const login = await request.post(`${API}/api/auth/login`, {
+    data: { email: OPS_EMAIL, password: OPS_PASSWORD, role: "OPERATOR" },
+  });
+  expect(login.ok(), "operator login (E2E_OPS_EMAIL / E2E_OPS_PASSWORD)").toBeTruthy();
+  const { token } = await login.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const pending = await (await request.get(`${API}/api/ops/drivers`, { headers })).json();
+  const driver = pending.find((d: { email: string }) => d.email === driverEmail.toLowerCase());
+  expect(driver, `pending driver ${driverEmail}`).toBeTruthy();
+  const res = await request.put(`${API}/api/ops/drivers/${driver.id}/approve`, { headers });
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
 export async function signIn(page: Page, email: string, role: "COMMUTER" | "DRIVER", password = PASSWORD) {
   await page.goto("/login");
   if (role === "DRIVER") await page.getByRole("radio", { name: "DRIVER" }).click();
