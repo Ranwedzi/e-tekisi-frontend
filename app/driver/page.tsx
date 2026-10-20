@@ -184,8 +184,14 @@ export default function DriverDashboard() {
             <p className="text-xs font-bold mt-1 opacity-80">
               {driver.approvalStatus === "REJECTED"
                 ? driver.approvalNote ?? "Contact e-Tekisi support for details."
-                : "We check your licence, PrDP and operating permit before you can take trips. You'll get a notification when it's done."}
+                : driver.approvalNote ??
+                  "Upload your licence, PrDP and operating licence. We check them before you can take trips, and you'll get a notification when it's done."}
             </p>
+            {driver.approvalStatus === "PENDING_APPROVAL" && (
+              <Link href="/driver/documents" className="inline-block mt-3 px-4 py-2 rounded-xl bg-[#FFD217] text-black font-black text-xs uppercase">
+                My documents
+              </Link>
+            )}
           </div>
         )}
         <button

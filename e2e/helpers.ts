@@ -61,17 +61,43 @@ export async function signUpDriver(request: APIRequestContext, email: string, pl
 export const OPS_EMAIL = process.env.E2E_OPS_EMAIL;
 export const OPS_PASSWORD = process.env.E2E_OPS_PASSWORD;
 
-/** New drivers can't take trips until approved; do what an operator would on /ops. */
+/** A tiny file that passes the backend's PDF check. */
+export const TEST_PDF = Buffer.from("%PDF-1.4\n% e-Tekisi e2e test document\n%%EOF\n");
+
+const REQUIRED_DOCUMENTS = ["DRIVERS_LICENCE", "PRDP", "OPERATING_LICENCE"];
+
+async function bearer(request: APIRequestContext, email: string, password: string, role: string) {
+  const login = await request.post(`${API}/api/auth/login`, { data: { email, password, role } });
+  expect(login.ok(), `${role} login for ${email}`).toBeTruthy();
+  return { Authorization: `Bearer ${(await login.json()).token}` };
+}
+
+/**
+ * New drivers can't take trips until approved. Does what they and an operator
+ * would: the driver uploads the required documents, the operator accepts each
+ * one on /ops and approves the account.
+ */
 export async function approveDriver(request: APIRequestContext, driverEmail: string) {
-  const login = await request.post(`${API}/api/auth/login`, {
-    data: { email: OPS_EMAIL, password: OPS_PASSWORD, role: "OPERATOR" },
-  });
-  expect(login.ok(), "operator login (E2E_OPS_EMAIL / E2E_OPS_PASSWORD)").toBeTruthy();
-  const { token } = await login.json();
-  const headers = { Authorization: `Bearer ${token}` };
+  const driverHeaders = await bearer(request, driverEmail, PASSWORD, "DRIVER");
+  const nextYear = `${new Date().getFullYear() + 1}-12-31`;
+  for (const type of REQUIRED_DOCUMENTS) {
+    const up = await request.post(`${API}/api/me/documents`, {
+      headers: driverHeaders,
+      multipart: { type, expiresOn: nextYear, file: { name: `${type.toLowerCase()}.pdf`, mimeType: "application/pdf", buffer: TEST_PDF } },
+    });
+    expect(up.ok(), await up.text()).toBeTruthy();
+  }
+
+  expect(OPS_EMAIL && OPS_PASSWORD, "E2E_OPS_EMAIL / E2E_OPS_PASSWORD").toBeTruthy();
+  const headers = await bearer(request, OPS_EMAIL!, OPS_PASSWORD!, "OPERATOR");
   const pending = await (await request.get(`${API}/api/ops/drivers`, { headers })).json();
   const driver = pending.find((d: { email: string }) => d.email === driverEmail.toLowerCase());
   expect(driver, `pending driver ${driverEmail}`).toBeTruthy();
+  const docs = await (await request.get(`${API}/api/ops/drivers/${driver.id}/documents`, { headers })).json();
+  for (const doc of docs.items.filter((d: { status: string }) => d.status === "SUBMITTED")) {
+    const ok = await request.put(`${API}/api/ops/documents/${doc.id}/accept`, { headers, data: {} });
+    expect(ok.ok(), await ok.text()).toBeTruthy();
+  }
   const res = await request.put(`${API}/api/ops/drivers/${driver.id}/approve`, { headers });
   expect(res.ok(), await res.text()).toBeTruthy();
 }
