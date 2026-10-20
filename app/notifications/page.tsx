@@ -6,7 +6,7 @@ import { useToast } from "../components/Feedback";
 import { BackIcon, BellIcon } from "../components/Icons";
 import { apiFetch, errorMessage } from "../lib/api";
 import { homeFor } from "../lib/session";
-import { usePolling } from "../lib/usePolling";
+import { useLivePolling } from "../lib/live";
 import type { AppNotification } from "../lib/types";
 
 export default function NotificationsPage() {
@@ -24,7 +24,7 @@ function Notifications() {
 
   // The backend works out whose notifications these are from the sign-in token.
   const fetchNotifications = async () => setList(await apiFetch<AppNotification[]>("/api/notifications"));
-  usePolling(fetchNotifications, 10_000);
+  useLivePolling(fetchNotifications, ["notifications"], 10_000);
 
   const markRead = async (n: AppNotification) => {
     setList((l) => l?.filter((x) => x.id !== n.id) ?? null);

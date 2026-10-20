@@ -6,7 +6,7 @@ import { useToast } from "../../components/Feedback";
 import { BackIcon } from "../../components/Icons";
 import { Spinner } from "../../components/Spinner";
 import { ApiError, apiFetch, errorMessage } from "../../lib/api";
-import { usePolling } from "../../lib/usePolling";
+import { useLivePolling } from "../../lib/live";
 import type { Wallet, TopUpLimits } from "../../lib/types";
 
 const MIN_TOPUP = 10;
@@ -28,7 +28,7 @@ export default function WalletPage() {
     setWallet(w);
     setLimits(l);
   };
-  usePolling(fetchWallet, 15_000);
+  useLivePolling(fetchWallet, ["bookings"], 15_000, 60_000);
 
   const handleTopUp = async (e: FormEvent) => {
     e.preventDefault();

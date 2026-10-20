@@ -7,7 +7,7 @@ import { BackIcon, MoneyIcon, TaxiIcon } from "../../components/Icons";
 import { DriverNav } from "../../components/Nav";
 import { Spinner } from "../../components/Spinner";
 import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
-import { usePolling } from "../../lib/usePolling";
+import { useLivePolling } from "../../lib/live";
 import type { Earnings, Payout, PayoutMethod, PayoutLimits } from "../../lib/types";
 
 const METHODS: { value: PayoutMethod; label: string }[] = [
@@ -34,7 +34,7 @@ export default function DriverEarnings() {
     setPayouts(p);
     setLimits(l);
   };
-  usePolling(load, 30_000);
+  useLivePolling(load, ["payouts", "bookings"], 30_000, 60_000);
 
   if (!data) return <Spinner dark />;
 
