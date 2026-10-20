@@ -42,6 +42,8 @@ test("commuter books, driver offers, commuter accepts, driver completes and cash
   await c.getByRole("button", { name: "R100", exact: true }).click();
   await c.getByRole("button", { name: "CONFIRM TOP-UP" }).click();
   await expect(c.getByText("R100.00 added to your wallet.")).toBeVisible();
+  // New accounts can top up R500 a day.
+  await expect(c.getByText(/You can add R400\.00 more today/)).toBeVisible();
 
   await c.goto("/");
   await c.getByLabel("Pick-up point").fill(pickup);

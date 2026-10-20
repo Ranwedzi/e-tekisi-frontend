@@ -8,7 +8,7 @@ import { DriverNav } from "../../components/Nav";
 import { Spinner } from "../../components/Spinner";
 import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
-import type { Earnings, Payout, PayoutMethod } from "../../lib/types";
+import type { Earnings, Payout, PayoutMethod, PayoutLimits } from "../../lib/types";
 
 const METHODS: { value: PayoutMethod; label: string }[] = [
   { value: "BANK_TRANSFER", label: "Bank transfer" },
@@ -22,14 +22,17 @@ export default function DriverEarnings() {
   const [data, setData] = useState<Earnings | null>(null);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [limits, setLimits] = useState<PayoutLimits | null>(null);
 
   const load = async () => {
-    const [e, p] = await Promise.all([
+    const [e, p, l] = await Promise.all([
       apiFetch<Earnings>(`/api/bookings/driver/${session.userId}/earnings`),
       apiFetch<Payout[]>(`/api/payouts/driver/${session.userId}`),
+      apiFetch<PayoutLimits>(`/api/payouts/driver/${session.userId}/limits`).catch(() => null),
     ]);
     setData(e);
     setPayouts(p);
+    setLimits(l);
   };
   usePolling(load, 30_000);
 
@@ -59,6 +62,12 @@ export default function DriverEarnings() {
           Request Payout
         </button>
         {data.availableBalance < MIN_PAYOUT && <p className="text-[11px] font-bold opacity-60 mt-3">Minimum payout is R{MIN_PAYOUT}.</p>}
+        {limits && (
+          <p className="text-[11px] font-bold opacity-60 mt-2">
+            You can cash out up to R{limits.payoutToday.toFixed(2)} more today ({limits.payoutsLeftToday} request
+            {limits.payoutsLeftToday === 1 ? "" : "s"} left).
+          </p>
+        )}
       </div>
 
       <div className="bg-[#262626] p-7 rounded-[32px] border border-[#333] mb-10 flex justify-around items-center shadow-inner">
