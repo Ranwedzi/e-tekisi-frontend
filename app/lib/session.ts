@@ -63,6 +63,20 @@ export function clearSession() {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/**
+ * Signs out and loads `url` as a fresh page. Unlike clearSession it doesn't
+ * notify this tab first, so RequireAuth can't redirect to plain /login before
+ * we get there (other tabs still see the storage change and sign out).
+ */
+export function signOutTo(url: string) {
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch {
+    // ignore
+  }
+  window.location.replace(url);
+}
+
 export function homeFor(role: Role): string {
   if (role === "DRIVER") return "/driver";
   if (role === "OPERATOR" || role === "ADMIN") return "/ops";

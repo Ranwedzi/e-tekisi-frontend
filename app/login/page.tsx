@@ -36,6 +36,8 @@ function LoginForm() {
   const notice =
     params.get("reason") === "expired"
       ? "Your session has ended. Please sign in again."
+      : params.get("reason") === "deleted"
+        ? "Your account has been deleted."
       : params.get("registered") === "1"
         ? "Account created. You can sign in now."
         : params.get("registered") === "driver"
