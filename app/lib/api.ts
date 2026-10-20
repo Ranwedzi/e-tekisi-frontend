@@ -39,6 +39,8 @@ export function newIdempotencyKey(): string {
 function redirectToLogin(reason: string) {
   if (typeof window === "undefined") return;
   if (window.location.pathname.startsWith("/login")) return;
+  // A full page load on purpose: nothing from the old session survives in memory.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = `/login?reason=${reason}`;
 }
 

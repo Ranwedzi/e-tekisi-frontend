@@ -195,7 +195,9 @@ export interface NearbyTaxi {
 }
 
 export interface LoginResponse {
-  status: "SUCCESS" | "FAIL";
+  /** MFA_*: staff with two-step sign-in get a challenge (mfaToken) instead of a token. */
+  status: "SUCCESS" | "FAIL" | "MFA_REQUIRED" | "MFA_SETUP_REQUIRED";
+  mfaToken?: string;
   userId: number;
   role: Role;
   token: string;
