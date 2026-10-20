@@ -24,7 +24,42 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
-  # The end-to-end tests (npm run test:e2e) need the backend and a database,
-  # which live in the e-tekisi-backend repo. Run them locally against
-  # `docker compose up -d --build` there, or add a job here that checks out
-  # both repos and starts that compose stack before `npx playwright test`.
+      - name: No known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  # The whole app in Docker (Postgres, backend, Mailpit, this frontend) and
+  # the Playwright suite, via the backend repo's scripts/ci-e2e.sh. Needs the
+  # repository variable BACKEND_REPOSITORY (owner/name) and, if that repo is
+  # private, a CROSS_REPO_TOKEN secret that can read it.
+  e2e:
+    name: End-to-end (full stack)
+    runs-on: ubuntu-latest
+    needs: build
+    if: vars.BACKEND_REPOSITORY != ''
+    timeout-minutes: 30
+    steps:
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          path: frontend
+
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.BACKEND_REPOSITORY }}
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+          path: backend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run the stack and the e2e suite
+        run: backend/scripts/ci-e2e.sh frontend
+
+      - name: Upload Playwright results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: frontend/test-results/
