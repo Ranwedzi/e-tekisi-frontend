@@ -20,6 +20,8 @@ export function SessionWatcher() {
       if (hasStored && !getSession()) {
         clearSession();
         if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
+          // A full page load on purpose: nothing from the old session survives in memory.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = "/login?reason=expired";
         }
       }

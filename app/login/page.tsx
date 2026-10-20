@@ -7,6 +7,7 @@ import { homeFor, saveSession, useSession } from "../lib/session";
 import type { LoginResponse, Role } from "../lib/types";
 import { TaxiIcon } from "../components/Icons";
 import { Spinner } from "../components/Spinner";
+import { StaffMfaStep, type MfaChallenge } from "../components/StaffMfa";
 
 export default function LoginPage() {
   return (
@@ -27,6 +28,12 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
+
+  const signedIn = (data: LoginResponse) => {
+    saveSession(data.token, data.userId, data.role, data.expiresInSeconds);
+    router.replace(homeFor(data.role));
+  };
 
   // Already signed in: go straight to the right home screen.
   useEffect(() => {
@@ -40,6 +47,8 @@ function LoginForm() {
         ? "Your account has been deleted."
       : params.get("reason") === "reset"
         ? "Password changed. Sign in with your new password."
+      : params.get("reason") === "mfa"
+        ? "Two-step sign-in changed. Sign in again."
       : params.get("registered") === "1"
         ? "Account created. We've sent you an email to confirm your address; you can sign in now."
         : params.get("registered") === "driver"
@@ -60,8 +69,11 @@ function LoginForm() {
         auth: false,
         body: { email: email.trim(), password, role: staff ? "OPERATOR" : role },
       });
-      saveSession(data.token, data.userId, data.role, data.expiresInSeconds);
-      router.replace(homeFor(data.role));
+      if ((data.status === "MFA_REQUIRED" || data.status === "MFA_SETUP_REQUIRED") && data.mfaToken) {
+        setChallenge({ status: data.status, mfaToken: data.mfaToken, message: data.message });
+        return;
+      }
+      signedIn(data);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 401 ? "Invalid email or password." : errorMessage(err));
     } finally {
@@ -78,6 +90,9 @@ function LoginForm() {
       <h1 className="text-4xl font-black mb-2 text-[#1A1A1A]">Welcome Back</h1>
       <p className="text-gray-400 font-bold mb-10 text-sm uppercase tracking-widest">Digital Taxi Gateway</p>
 
+      {challenge ? (
+        <StaffMfaStep challenge={challenge} onSignedIn={signedIn} />
+      ) : (
       <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4" noValidate>
         {notice && <p className="p-4 rounded-2xl bg-yellow-50 text-yellow-800 text-sm font-bold">{notice}</p>}
 
@@ -163,6 +178,7 @@ function LoginForm() {
           </Link>
         </p>
       </form>
+      )}
     </div>
   );
 }

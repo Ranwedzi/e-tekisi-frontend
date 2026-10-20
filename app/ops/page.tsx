@@ -2,9 +2,10 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm, useToast } from "../components/Feedback";
+import { RecoveryCodes, SetupInstructions } from "../components/StaffMfa";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
 import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
-import { clearSession } from "../lib/session";
+import { clearSession, signOutTo } from "../lib/session";
 import { usePolling } from "../lib/usePolling";
 import type { DocumentSummary, DriverApproval, DriverReview, DriverDocument, Insight, PayoutOps, PayoutStatus } from "../lib/types";
 
@@ -17,7 +18,7 @@ const METHOD_LABEL: Record<string, string> = {
 
 export default function OpsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"drivers" | "payouts" | "alerts">("drivers");
+  const [tab, setTab] = useState<"drivers" | "payouts" | "alerts" | "account">("drivers");
 
   const logout = () => {
     clearSession();
@@ -38,7 +39,7 @@ export default function OpsPage() {
 
       <div className="max-w-3xl mx-auto p-4">
         <div className="flex bg-white p-1 rounded-2xl mb-6 border border-gray-200 w-fit" role="tablist">
-          {(["drivers", "payouts", "alerts"] as const).map((t) => (
+          {(["drivers", "payouts", "alerts", "account"] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -46,11 +47,11 @@ export default function OpsPage() {
               onClick={() => setTab(t)}
               className={`px-6 py-3 rounded-xl font-black text-xs uppercase ${tab === t ? "bg-black text-[#FFD217]" : "text-gray-400"}`}
             >
-              {t === "drivers" ? "Drivers" : t === "payouts" ? "Payouts" : "Safety alerts"}
+              {t === "drivers" ? "Drivers" : t === "payouts" ? "Payouts" : t === "alerts" ? "Safety alerts" : "My account"}
             </button>
           ))}
         </div>
-        {tab === "drivers" ? <Drivers /> : tab === "payouts" ? <Payouts /> : <Alerts />}
+        {tab === "drivers" ? <Drivers /> : tab === "payouts" ? <Payouts /> : tab === "alerts" ? <Alerts /> : <AccountSecurity />}
       </div>
     </div>
   );
@@ -515,6 +516,103 @@ function Documents({ driverId }: { driverId: number }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** The operator's own two-step sign-in. */
+function AccountSecurity() {
+  const toast = useToast();
+  const [status, setStatus] = useState<{ enabled: boolean; required: boolean; recoveryCodesLeft: number } | null>(null);
+  const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => setStatus(await apiFetch("/api/me/mfa"));
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+      setCode("");
+    }
+  };
+
+  if (codes) {
+    // Turning MFA on signed out every session, this one included.
+    return (
+      <section className="bg-white p-6 rounded-[24px] border border-gray-100 max-w-md">
+        <RecoveryCodes codes={codes} onDone={() => signOutTo("/login?reason=mfa")} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-white p-6 rounded-[24px] border border-gray-100 max-w-md space-y-4">
+      <Poller fn={load} />
+      <h2 className="font-black text-lg">Two-step sign-in</h2>
+      {!status ? (
+        <p className="text-sm font-bold text-gray-400">Loading…</p>
+      ) : status.enabled ? (
+        <>
+          <p className="text-sm font-bold text-green-700">On. You sign in with your password and a code from your phone.</p>
+          <p className="text-xs font-bold text-gray-500">Recovery codes left: {status.recoveryCodesLeft}</p>
+          {!status.required && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(async () => {
+                  await apiFetch("/api/me/mfa/disable", { method: "POST", body: { code: code.trim() } });
+                  signOutTo("/login?reason=mfa");
+                });
+              }}
+              className="flex gap-2"
+            >
+              <input value={code} onChange={(e) => setCode(e.target.value)} aria-label="Code to turn off two-step sign-in"
+                placeholder="Code" className="flex-1 min-w-0 p-3 rounded-xl border border-gray-200 font-bold" />
+              <button disabled={busy || code.trim().length < 6} className="px-4 rounded-xl bg-red-50 text-red-600 font-black text-xs uppercase disabled:opacity-50">
+                Turn off
+              </button>
+            </form>
+          )}
+        </>
+      ) : setup ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(async () => {
+              const r = await apiFetch<{ recoveryCodes: string[] }>("/api/me/mfa/enable", { method: "POST", body: { code: code.trim() } });
+              setCodes(r.recoveryCodes);
+            });
+          }}
+          className="space-y-3"
+        >
+          <SetupInstructions setup={setup} />
+          <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} aria-label="Authentication code"
+            placeholder="123456" className="w-full p-3 rounded-xl border border-gray-200 font-black tracking-[0.4em] text-center" />
+          <button disabled={busy || code.trim().length !== 6} className="w-full py-3 rounded-xl bg-black text-[#FFD217] font-black text-xs uppercase disabled:opacity-50">
+            Turn on
+          </button>
+        </form>
+      ) : (
+        <>
+          <p className="text-sm font-bold text-gray-500">
+            Off. Your account can approve drivers and pay out money: protect it with a code from your phone as well as your
+            password.
+          </p>
+          <button
+            disabled={busy}
+            onClick={() => run(async () => setSetup(await apiFetch("/api/me/mfa/setup", { method: "POST" })))}
+            className="px-4 py-3 rounded-xl bg-black text-[#FFD217] font-black text-xs uppercase disabled:opacity-50"
+          >
+            Set up two-step sign-in
+          </button>
+        </>
+      )}
+    </section>
   );
 }
 
