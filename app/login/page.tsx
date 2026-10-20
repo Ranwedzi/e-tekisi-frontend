@@ -38,10 +38,12 @@ function LoginForm() {
       ? "Your session has ended. Please sign in again."
       : params.get("reason") === "deleted"
         ? "Your account has been deleted."
+      : params.get("reason") === "reset"
+        ? "Password changed. Sign in with your new password."
       : params.get("registered") === "1"
-        ? "Account created. You can sign in now."
+        ? "Account created. We've sent you an email to confirm your address; you can sign in now."
         : params.get("registered") === "driver"
-          ? "Account created. Sign in to see your status: we check your details before you can take trips."
+          ? "Account created. Confirm your email (check your inbox), then sign in to see your status: we check your details before you can take trips."
           : null;
 
   const handleLogin = async (e: FormEvent) => {
@@ -125,6 +127,14 @@ function LoginForm() {
             {showPass ? "Hide" : "Show"}
           </button>
         </div>
+
+        {!staff && (
+          <p className="text-right px-2 -mt-1">
+            <Link href="/forgot-password" className="text-xs font-bold text-gray-400 underline">
+              Forgot password?
+            </Link>
+          </p>
+        )}
 
         {error && (
           <p role="alert" className="text-sm font-bold text-red-600 px-2">

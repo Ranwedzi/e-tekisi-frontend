@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { homeFor, useSession, type Session } from "../lib/session";
 import type { Role } from "../lib/types";
 import { Spinner } from "./Spinner";
+import { AccountGate } from "./AccountGate";
 
 const SessionContext = createContext<Session | null>(null);
 
@@ -24,7 +25,12 @@ export function RequireAuth({ roles, children, dark = false }: { roles?: Role[];
   }, [ready, session, allowed, router]);
 
   if (!ready || !allowed) return <Spinner dark={dark} />;
-  return <SessionContext.Provider value={session}>{children}</SessionContext.Provider>;
+  const isStaff = session.role === "OPERATOR" || session.role === "ADMIN";
+  return (
+    <SessionContext.Provider value={session}>
+      {isStaff ? children : <AccountGate role={session.role}>{children}</AccountGate>}
+    </SessionContext.Provider>
+  );
 }
 
 export function useAuthedSession(): Session {

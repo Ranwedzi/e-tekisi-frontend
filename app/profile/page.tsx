@@ -105,8 +105,83 @@ function Profile() {
         )}
       </div>
 
+      <ChangePassword />
       <YourData />
     </div>
+  );
+}
+
+/** Changing the password signs out every session, this one included. */
+function ChangePassword() {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (next.length < 10) return setError("Use at least 10 characters for your new password.");
+    setBusy(true);
+    try {
+      await apiFetch("/api/me/password", { method: "POST", body: { currentPassword: current, newPassword: next } });
+      signOutTo("/login?reason=reset");
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-10" aria-labelledby="security">
+      <h3 id="security" className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase mb-3 px-1">
+        Security
+      </h3>
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="w-full text-left p-5 bg-white border border-gray-100 rounded-[28px] shadow-sm active:bg-gray-50 transition font-black text-sm text-gray-800"
+        >
+          Change password
+        </button>
+      ) : (
+        <form onSubmit={submit} className="p-5 border border-gray-100 rounded-[28px] space-y-3">
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            aria-label="Current password"
+            placeholder="Current password"
+            className="w-full p-3 rounded-2xl border border-gray-200"
+          />
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            aria-label="New password"
+            placeholder="New password (10+ characters)"
+            className="w-full p-3 rounded-2xl border border-gray-200"
+          />
+          <p className="text-xs font-bold text-gray-400">You&apos;ll be signed out everywhere and sign in again with the new password.</p>
+          {error && (
+            <p className="text-sm font-bold text-red-600" role="status">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-3">
+            <button type="submit" disabled={busy} className="flex-1 bg-black text-white font-black text-sm py-3 rounded-2xl disabled:opacity-50">
+              {busy ? "Saving…" : "Change password"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="flex-1 bg-white border border-gray-200 font-black text-sm py-3 rounded-2xl">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

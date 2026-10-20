@@ -203,3 +203,13 @@ export interface LoginResponse {
   expiresInSeconds: number;
   message?: string;
 }
+
+/** GET /api/me/status */
+export interface AccountStatus {
+  verified: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  phoneVerificationAvailable: boolean;
+  termsAccepted: boolean;
+  currentTermsVersion: string;
+}

@@ -6,18 +6,56 @@ export const PASSWORD = "E2e-Password-1";
 /** A run-unique suffix so tests never collide with earlier data in the same database. */
 export const runId = () => `${Date.now()}${Math.floor(Math.random() * 100)}`;
 
-export async function signUpCommuter(request: APIRequestContext, email: string, fullName = "E2E Commuter") {
-  const res = await request.post(`${API}/api/auth/register/commuter`, {
-    data: { fullName, email, phoneNumber: "0710000123", password: PASSWORD },
-  });
+/** Mailpit (docker compose) catches the backend's emails; its API is how tests read them. */
+export const MAILPIT = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
+
+async function termsVersion(request: APIRequestContext): Promise<string> {
+  const res = await request.get(`${API}/api/legal`);
+  expect(res.ok(), "GET /api/legal").toBeTruthy();
+  return (await res.json()).version;
+}
+
+/** The newest email to `to` that links to `/page?token=...`; returns the token. Waits for delivery. */
+export async function emailToken(request: APIRequestContext, to: string, page: string): Promise<string> {
+  for (let i = 0; i < 40; i++) {
+    const search = await request.get(`${MAILPIT}/api/v1/search`, { params: { query: `to:"${to}"` } });
+    if (search.ok()) {
+      for (const m of (await search.json()).messages ?? []) {
+        const full = await (await request.get(`${MAILPIT}/api/v1/message/${m.ID}`)).json();
+        const match = new RegExp(`/${page}\\?token=([A-Za-z0-9_-]+)`).exec(full.Text ?? "");
+        if (match) return match[1];
+      }
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`No ${page} email to ${to} in Mailpit (${MAILPIT}). Is the mailpit service running?`);
+}
+
+/** Clicks the verification link, as the person would. */
+export async function verifyEmail(request: APIRequestContext, email: string) {
+  const token = await emailToken(request, email.toLowerCase(), "verify-email");
+  const res = await request.post(`${API}/api/auth/verify-email`, { data: { token } });
   expect(res.ok(), await res.text()).toBeTruthy();
 }
 
-export async function signUpDriver(request: APIRequestContext, email: string, plate: string, fullName = "E2E Driver") {
-  const res = await request.post(`${API}/api/auth/register/driver`, {
-    data: { fullName, email, phoneNumber: "0820000123", taxiPlate: plate, licenseNumber: "E2E-LIC", password: PASSWORD },
+/** Signs up a commuter who accepted the terms and (unless `verify` is false) confirmed their email. */
+export async function signUpCommuter(request: APIRequestContext, email: string, fullName = "E2E Commuter", verify = true) {
+  const res = await request.post(`${API}/api/auth/register/commuter`, {
+    data: { fullName, email, phoneNumber: "0710000123", password: PASSWORD, acceptTerms: true, termsVersion: await termsVersion(request) },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
+  if (verify) await verifyEmail(request, email);
+}
+
+export async function signUpDriver(request: APIRequestContext, email: string, plate: string, fullName = "E2E Driver", verify = true) {
+  const res = await request.post(`${API}/api/auth/register/driver`, {
+    data: {
+      fullName, email, phoneNumber: "0820000123", taxiPlate: plate, licenseNumber: "E2E-LIC", password: PASSWORD,
+      acceptTerms: true, termsVersion: await termsVersion(request),
+    },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  if (verify) await verifyEmail(request, email);
 }
 
 export const OPS_EMAIL = process.env.E2E_OPS_EMAIL;
