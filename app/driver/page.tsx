@@ -176,9 +176,21 @@ export default function DriverDashboard() {
       </div>
 
       <div className="px-6 pb-6">
+        {driver.approvalStatus !== "APPROVED" && (
+          <div role="status" className={`mb-4 p-5 rounded-[24px] border ${driver.approvalStatus === "REJECTED" ? "bg-red-950/60 border-red-800 text-red-200" : "bg-[#262626] border-[#FFD217]/40 text-gray-200"}`}>
+            <p className="font-black text-sm">
+              {driver.approvalStatus === "REJECTED" ? "Your account was not approved" : "Your account is being checked"}
+            </p>
+            <p className="text-xs font-bold mt-1 opacity-80">
+              {driver.approvalStatus === "REJECTED"
+                ? driver.approvalNote ?? "Contact e-Tekisi support for details."
+                : "We check your licence, PrDP and operating permit before you can take trips. You'll get a notification when it's done."}
+            </p>
+          </div>
+        )}
         <button
           onClick={toggleOnline}
-          disabled={togglingOnline}
+          disabled={togglingOnline || driver.approvalStatus !== "APPROVED"}
           aria-pressed={isOnline}
           className={`w-full py-8 rounded-[32px] font-black text-2xl transition-all shadow-2xl border-4 disabled:opacity-70 ${isOnline ? "bg-green-600 border-green-400" : "bg-[#FFD217] border-[#e6bd15] text-black"}`}
         >
