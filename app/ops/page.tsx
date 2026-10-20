@@ -7,7 +7,7 @@ import { Reconciliation } from "../components/Reconciliation";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
 import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
 import { clearSession, signOutTo } from "../lib/session";
-import { usePolling } from "../lib/usePolling";
+import { useLivePolling } from "../lib/live";
 import type { DocumentSummary, DriverApproval, DriverReview, DriverDocument, Insight, PayoutOps, PayoutStatus } from "../lib/types";
 
 const FILTERS: (PayoutStatus | "ALL")[] = ["PENDING", "APPROVED", "PAID", "REJECTED", "ALL"];
@@ -139,7 +139,7 @@ function PayoutList({
   onPaid: (p: PayoutOps, reference: string) => void;
   onReject: (p: PayoutOps, reason: string) => void;
 }) {
-  usePolling(onLoad, 20_000);
+  useLivePolling(onLoad, ["payouts"], 20_000, 60_000);
   if (list === null) return <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>;
   if (list.length === 0) return <p className="text-center py-10 text-gray-400 font-bold">Nothing here.</p>;
   return (
@@ -320,7 +320,7 @@ function Drivers() {
           </button>
         ))}
       </div>
-      <Poller key={filter} fn={load} />
+      <Poller key={filter} fn={load} topics={["drivers"]} />
       {list === null ? (
         <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>
       ) : list.length === 0 ? (
@@ -630,8 +630,8 @@ function AccountSecurity() {
 }
 
 /** Polls `fn`; re-keyed by the parent when its filter changes so the new list loads straight away. */
-function Poller({ fn }: { fn: () => Promise<void> }) {
-  usePolling(fn, 20_000);
+function Poller({ fn, topics = [] }: { fn: () => Promise<void>; topics?: string[] }) {
+  useLivePolling(fn, topics, 20_000, 60_000);
   return null;
 }
 
@@ -684,7 +684,7 @@ function Alerts() {
           </button>
         ))}
       </div>
-      <Poller key={String(open)} fn={load} />
+      <Poller key={String(open)} fn={load} topics={["alerts"]} />
       {items === null ? (
         <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>
       ) : items.length === 0 ? (

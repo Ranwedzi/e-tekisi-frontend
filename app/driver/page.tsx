@@ -12,6 +12,7 @@ import { DriverNav, NotificationBell } from "../components/Nav";
 import { Spinner } from "../components/Spinner";
 import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { usePolling } from "../lib/usePolling";
+import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
 import type { Booking, Driver, TripCompletedResponse } from "../lib/types";
 
@@ -41,7 +42,7 @@ export default function DriverDashboard() {
     setPending(p);
     setMyTrips(mine);
   };
-  usePolling(load, 5000);
+  useLivePolling(load, ["bookings", "pending", "notifications"], 5000);
 
   const isOnline = driver?.active ?? false;
   const hasValidCoords = Number.isFinite(coords[0]) && Number.isFinite(coords[1]) && (coords[0] !== 0 || coords[1] !== 0);

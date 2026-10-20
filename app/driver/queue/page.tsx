@@ -6,6 +6,7 @@ import { useToast } from "../../components/Feedback";
 import { BackIcon, QueueIcon, RefreshIcon } from "../../components/Icons";
 import { apiFetch, errorMessage } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
+import { useLivePolling } from "../../lib/live";
 import type { QueueTicket, TaxiRank } from "../../lib/types";
 
 export default function RankQueue() {
@@ -28,7 +29,7 @@ export default function RankQueue() {
     if (!selectedRank) return;
     setRankList(await apiFetch<QueueTicket[]>(`/api/queue/status/${encodeURIComponent(selectedRank)}`));
   };
-  usePolling(fetchQueue, 5000, !!selectedRank);
+  useLivePolling(fetchQueue, ["queue"], 5000, 30_000, !!selectedRank);
 
   const myTicket = rankList.find((t) => t.driverId === session.userId) ?? null;
   const waiting = rankList.filter((t) => t.status === "WAITING");

@@ -5,7 +5,7 @@ import { BackIcon } from "../../components/Icons";
 import { Spinner } from "../../components/Spinner";
 import { useToast } from "../../components/Feedback";
 import { apiFetch, errorMessage, openProtectedFile } from "../../lib/api";
-import { usePolling } from "../../lib/usePolling";
+import { useLivePolling } from "../../lib/live";
 import type { DocumentSummary, DocumentType, DriverDocument } from "../../lib/types";
 
 const LABEL: Record<DocumentType, string> = {
@@ -32,7 +32,7 @@ const STATUS_TEXT: Record<DriverDocument["status"], string> = {
 export default function DriverDocumentsPage() {
   const [data, setData] = useState<DocumentSummary | null>(null);
   const load = async () => setData(await apiFetch<DocumentSummary>("/api/me/documents"));
-  usePolling(load, 30_000);
+  useLivePolling(load, ["documents"], 30_000, 60_000);
 
   if (!data) return <Spinner dark />;
   const types = [...data.required, ...OPTIONAL.filter((t) => !data.required.includes(t))];

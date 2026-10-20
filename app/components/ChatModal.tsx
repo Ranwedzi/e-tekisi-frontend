@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { apiFetch, errorMessage } from "../lib/api";
-import { usePolling } from "../lib/usePolling";
+import { useLivePolling } from "../lib/live";
 import type { ChatMessage } from "../lib/types";
 import { useAuthedSession } from "./RequireAuth";
 import { useToast } from "./Feedback";
@@ -19,7 +19,7 @@ export default function ChatModal({ bookingId, title = "Live Chat", onClose }: {
   const fetchMessages = async () => {
     setMessages(await apiFetch<ChatMessage[]>(`/api/messages/${bookingId}`));
   };
-  usePolling(fetchMessages, 3000);
+  useLivePolling(fetchMessages, [`messages:${bookingId}`], 3000);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
