@@ -73,6 +73,11 @@ export default function PrivacyPage() {
           delivery [provider], SMS delivery [provider], and map services (OpenStreetMap-based). [List each, and say
           where any of them store data outside South Africa and on what basis.]
         </li>
+        <li>
+          People you share a trip with: if you use &quot;Share my trip&quot;, anyone with the link sees your first name,
+          your pick-up and destination, the taxi&apos;s plate and live position and the driver&apos;s first name, until the
+          trip ends, the link expires (12 hours) or you stop sharing.
+        </li>
         <li>Authorities, when the law requires it or to protect someone&apos;s safety.</li>
       </ul>
 

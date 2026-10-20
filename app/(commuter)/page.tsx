@@ -29,6 +29,7 @@ export default function Home() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [nearbyTaxis, setNearbyTaxis] = useState<NearbyTaxi[]>([]);
   const [showChat, setShowChat] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +157,32 @@ export default function Home() {
       toast.success("Alert sent. An operator will follow up.");
     } catch (err) {
       toast.error(`Alert failed: ${errorMessage(err)}. Call 10111 or 112.`);
+    }
+  };
+
+  const handleShare = async (trip: Booking) => {
+    try {
+      const { url } = await apiFetch<{ url: string }>(`/api/bookings/${trip.id}/share`, { method: "POST" });
+      setSharing(true);
+      const text = "Follow my taxi on e-Tekisi until I arrive:";
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: "My e-Tekisi trip", text, url }).catch(() => {});
+      } else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast.success("Link copied. Send it to someone you trust.");
+      }
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
+  const stopSharing = async (trip: Booking) => {
+    try {
+      await apiFetch(`/api/bookings/${trip.id}/share`, { method: "DELETE" });
+      setSharing(false);
+      toast.success("Sharing stopped. The link no longer works.");
+    } catch (err) {
+      toast.error(errorMessage(err));
     }
   };
 
@@ -308,6 +335,16 @@ export default function Home() {
             <button onClick={() => handleCancel(activeTrip)} className="py-3 bg-red-50 text-red-500 font-black text-[10px] rounded-2xl uppercase tracking-widest active:bg-red-100 transition">
               Cancel Ride
             </button>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => handleShare(activeTrip)} className="flex-1 py-3 bg-black text-[#FFD217] font-black text-[10px] rounded-2xl uppercase tracking-widest active:scale-95 transition">
+              {sharing ? "Share again" : "Share my trip"}
+            </button>
+            {sharing && (
+              <button onClick={() => stopSharing(activeTrip)} className="px-4 py-3 bg-gray-100 font-black text-[10px] rounded-2xl uppercase tracking-widest">
+                Stop sharing
+              </button>
+            )}
           </div>
         </div>
       )}

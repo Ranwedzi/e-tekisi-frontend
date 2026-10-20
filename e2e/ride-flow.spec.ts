@@ -19,6 +19,15 @@ test("commuter books, driver offers, commuter accepts, driver completes and cash
 
   // Separate browser contexts = separate phones (separate sign-ins).
   const commuterCtx = await browser.newContext();
+  // Capture what the phone's share sheet would receive.
+  await commuterCtx.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (data: ShareData) => {
+        (window as unknown as { __shared?: ShareData }).__shared = data;
+      },
+    });
+  });
   const c = await commuterCtx.newPage();
   const driverCtx = await browser.newContext({
     geolocation: { latitude: -26.2041, longitude: 28.0473 },
@@ -66,11 +75,29 @@ test("commuter books, driver offers, commuter accepts, driver completes and cash
   await expect(c.getByText("Offer accepted. R30.00 paid from your wallet.")).toBeVisible();
   await expect(c.getByText("Driver on the way")).toBeVisible();
 
+  // --- Commuter: shares the trip; someone at home follows it without signing in.
+  await c.getByRole("button", { name: "Share my trip" }).click();
+  await expect(c.getByRole("button", { name: "Stop sharing" })).toBeVisible();
+  const sharedUrl = await c.evaluate(() => (window as unknown as { __shared?: ShareData }).__shared?.url);
+  expect(sharedUrl).toMatch(/\/share\/[A-Za-z0-9_-]+$/);
+  const viewerCtx = await browser.newContext();
+  const v = await viewerCtx.newPage();
+  await v.goto(sharedUrl!);
+  await expect(v.getByText("Live trip")).toBeVisible();
+  await expect(v.getByText(`E2E${id.slice(-6)}`)).toBeVisible();
+  await expect(v.getByText("Driver: E2E")).toBeVisible();
+
   // --- Driver: the job is active; complete it.
   await expect(d.getByText(/Active Job/)).toBeVisible({ timeout: 15_000 });
   await d.getByRole("button", { name: "Complete Trip" }).click();
   await d.getByRole("button", { name: "Complete", exact: true }).click();
   await expect(d.getByText("Trip completed. R30.00 added to your balance.")).toBeVisible();
+
+  // The shared page now only says the trip is over.
+  await v.reload();
+  await expect(v.getByRole("heading", { name: /trip is finished/ })).toBeVisible();
+  await expect(v.getByText(`E2E${id.slice(-6)}`)).toBeHidden();
+  await viewerCtx.close();
 
   // --- Driver: cash out R20 to an FNB eWallet.
   await d.goto("/driver/earnings");
