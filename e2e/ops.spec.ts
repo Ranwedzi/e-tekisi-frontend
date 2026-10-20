@@ -18,6 +18,10 @@ test("an operator signs in through the staff link and lands on /ops", async ({ p
   await expect(page.getByRole("tab", { name: "Drivers" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Payouts" }).click();
   await expect(page.getByRole("tab", { name: "Payouts" })).toHaveAttribute("aria-selected", "true");
+  // The money check: run it now; the e2e data must reconcile.
+  const recon = page.getByRole("region", { name: "Reconciliation" });
+  await recon.getByRole("button", { name: "Check now" }).click();
+  await expect(recon.getByText("The books balance", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Safety alerts" }).click();
   await expect(page.getByText(/No alerts waiting|No critical alerts|SAFETY PANIC|Safety panic/i).first()).toBeVisible();
 });

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm, useToast } from "../components/Feedback";
 import { RecoveryCodes, SetupInstructions } from "../components/StaffMfa";
+import { Reconciliation } from "../components/Reconciliation";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
 import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
 import { clearSession, signOutTo } from "../lib/session";
@@ -88,6 +89,7 @@ function Payouts() {
 
   return (
     <section>
+      <Reconciliation />
       <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
         {FILTERS.map((f) => (
           <button
