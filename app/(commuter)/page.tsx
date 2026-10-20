@@ -12,7 +12,7 @@ import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api"
 import { buildRoutePolyline, geocodeLocation } from "../lib/geo";
 import { usePolling } from "../lib/usePolling";
 import { useGeolocation } from "../lib/useGeolocation";
-import type { Booking, Commuter, CreateBookingResponse, DriverLocation, LatLng, Wallet } from "../lib/types";
+import type { Booking, Commuter, CreateBookingResponse, LatLng, NearbyTaxi, Wallet } from "../lib/types";
 
 const LiveMap = dynamic(() => import("../components/LiveMap"), { ssr: false });
 
@@ -27,7 +27,7 @@ export default function Home() {
   const [user, setUser] = useState<Commuter | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [nearbyTaxis, setNearbyTaxis] = useState<DriverLocation[]>([]);
+  const [nearbyTaxis, setNearbyTaxis] = useState<NearbyTaxi[]>([]);
   const [showChat, setShowChat] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -45,7 +45,13 @@ export default function Home() {
     setWallet(w);
   };
   usePolling(load, 5000);
-  usePolling(async () => setNearbyTaxis(await apiFetch<DriverLocation[]>("/api/locations/nearby")), 15_000);
+  // Taxis near the commuter. Needs their position; the backend only returns
+  // approximate positions of online drivers within a few km.
+  const hasCoords = Number.isFinite(coords[0]) && Number.isFinite(coords[1]) && (coords[0] !== 0 || coords[1] !== 0);
+  usePolling(async () => {
+    if (!hasCoords) return;
+    setNearbyTaxis(await apiFetch<NearbyTaxi[]>("/api/locations/nearby", { query: { lat: coords[0], lng: coords[1] } }));
+  }, 15_000);
 
   const activeTrip = bookings.find((b) => b.status === "ACCEPTED") ?? null;
   const offeredTrip = activeTrip ? null : bookings.find((b) => b.status === "OFFERED") ?? null;

@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 type LatLngTuple = [number, number];
-type TaxiLocation = { driverId: string | number; lat: number | null; lng: number | null };
+type TaxiLocation = { lat: number | null; lng: number | null };
 
 const taxiSvg = `
   <svg width="50" height="50" viewBox="0 0 100 100" aria-hidden="true">
@@ -110,7 +110,7 @@ export default function LiveMap({
         {icons?.taxi &&
           nearbyTaxis
             .filter((t): t is TaxiLocation & { lat: number; lng: number } => Number.isFinite(t.lat) && Number.isFinite(t.lng))
-            .map((t) => <Marker key={t.driverId} position={[t.lat, t.lng]} icon={icons.taxi} />)}
+            .map((t, i) => <Marker key={`${i}-${t.lat}-${t.lng}`} position={[t.lat, t.lng]} icon={icons.taxi} />)}
         <MapController center={resolvedCenter} canFly={canFly} />
       </MapContainer>
     </div>

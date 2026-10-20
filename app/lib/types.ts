@@ -164,11 +164,10 @@ export interface SavedRank {
   createdAt: string | null;
 }
 
-export interface DriverLocation {
-  driverId: number;
-  lat: number | null;
-  lng: number | null;
-  lastUpdated: string | null;
+/** An online taxi near the caller: position rounded to ~110 m, no driver id. */
+export interface NearbyTaxi {
+  lat: number;
+  lng: number;
 }
 
 export interface LoginResponse {
