@@ -1,8 +1,9 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, apiFetch, errorMessage } from "../lib/api";
+import { useLegal } from "../lib/legal";
 import type { Role } from "../lib/types";
 import { ChevronIcon, TaxiIcon } from "../components/Icons";
 
@@ -20,6 +21,12 @@ export default function Register() {
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const legal = useLegal();
+
+  // A driver must also accept the driver agreement, so re-confirm after switching.
+  useEffect(() => setAccepted(false), [role]);
 
   const set = (field: Field) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [field]: e.target.value });
 
@@ -28,7 +35,7 @@ export default function Register() {
     if (form.fullName.trim().length < 2) e.fullName = "Enter your full name.";
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = "Enter a valid email address.";
     if (!/^[+]?[0-9 ()-]{8,20}$/.test(form.phoneNumber.trim())) e.phoneNumber = "Enter a valid phone number.";
-    if (form.password.length < 8) e.password = "Use at least 8 characters.";
+    if (form.password.length < 10) e.password = "Use at least 10 characters. A few unrelated words make a good password.";
     if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match.";
     if (role === "DRIVER") {
       const plate = normalisePlate(form.taxiPlate);
@@ -43,13 +50,20 @@ export default function Register() {
     setFormError(null);
     const localErrors = validate();
     setErrors(localErrors);
-    if (Object.keys(localErrors).length > 0) return;
+    setTermsError(accepted ? null : "Please accept the terms to create your account.");
+    if (Object.keys(localErrors).length > 0 || !accepted) return;
+    if (!legal) {
+      setFormError("Can't reach e-Tekisi. Check your connection and try again.");
+      return;
+    }
 
     const base = {
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       phoneNumber: form.phoneNumber.trim(),
       password: form.password,
+      acceptTerms: true,
+      termsVersion: legal.version,
     };
     const body =
       role === "DRIVER"
@@ -69,6 +83,11 @@ export default function Register() {
         setErrors(err.fieldErrors as Partial<Record<Field, string>>);
       } else if (err instanceof ApiError && err.code === "EMAIL_TAKEN") {
         setErrors({ email: "An account with this email already exists." });
+      } else if (err instanceof ApiError && err.code === "WEAK_PASSWORD") {
+        setErrors({ password: err.message });
+      } else if (err instanceof ApiError && err.code === "TERMS_OUTDATED") {
+        setAccepted(false);
+        setTermsError("The terms were just updated. Please open them again and accept the new version.");
       } else {
         setFormError(errorMessage(err));
       }
@@ -146,7 +165,7 @@ export default function Register() {
                 aria-label="Password"
                 aria-invalid={!!errors.password}
                 className={inputClass}
-                placeholder="Password (8+ characters)"
+                placeholder="Password (10+ characters)"
                 value={form.password}
                 onChange={set("password")}
               />
@@ -158,6 +177,38 @@ export default function Register() {
           </div>
 
           {input("confirmPassword", "Confirm Password", showPass ? "text" : "password", "new-password")}
+
+          <div>
+            <label className="flex items-start gap-3 text-xs font-bold text-gray-600 leading-relaxed px-1">
+              <input
+                type="checkbox"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                aria-invalid={!!termsError}
+                className="mt-0.5 w-5 h-5 accent-black shrink-0"
+              />
+              <span>
+                I accept the{" "}
+                <Link href="/terms" target="_blank" className="underline text-black">
+                  terms of use
+                </Link>
+                {role === "DRIVER" && (
+                  <>
+                    , the{" "}
+                    <Link href="/driver-agreement" target="_blank" className="underline text-black">
+                      driver agreement
+                    </Link>
+                  </>
+                )}{" "}
+                and the{" "}
+                <Link href="/privacy" target="_blank" className="underline text-black">
+                  privacy policy
+                </Link>
+                , including how my location and trip details are used.
+              </span>
+            </label>
+            {termsError && <p className="text-xs font-bold text-red-600 mt-1 ml-2">{termsError}</p>}
+          </div>
         </div>
 
         {formError && (
