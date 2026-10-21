@@ -18,7 +18,8 @@ import { directionsUrl, distanceKm, formatKm } from "../lib/distance";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
 import type { Booking, Driver, TripCompletedResponse } from "../lib/types";
-import { useT } from "../lib/i18n";
+import { useLocale } from "../lib/i18n";
+import { formatWhen } from "../lib/when";
 
 const LiveMap = dynamic(() => import("../components/LiveMap"), { ssr: false });
 
@@ -26,7 +27,7 @@ export default function DriverDashboard() {
   const session = useAuthedSession();
   const toast = useToast();
   const confirm = useConfirm();
-  const t = useT();
+  const { t, tag } = useLocale();
   const { coords } = useGeolocation();
 
   const [driver, setDriver] = useState<Driver | null>(null);
@@ -283,7 +284,7 @@ export default function DriverDashboard() {
           {isOnline &&
             pending.map((b) => (
               <div key={b.id} className="bg-[#262626] p-6 rounded-[32px] border-l-8 border-[#FFD217] shadow-xl animate-in fade-in slide-in-from-bottom-4">
-                {b.scheduledTime && <p className="text-xs font-bold text-gray-500 mb-2">{t("driver.scheduled", { time: b.scheduledTime.replace("T", " ") })}</p>}
+                {b.scheduledAt && <p className="text-xs font-bold text-yellow-400 mb-2">{t("driver.scheduled", { time: formatWhen(b.scheduledAt, tag) })}</p>}
                 <p className="font-black text-lg leading-tight mb-1">
                   {b.pickupLocation} → {b.destination}
                 </p>
