@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "e-Tekisi",
   description: "Book minibus taxis, pay from your wallet and track your trip.",
+  applicationName: "e-Tekisi",
+  appleWebApp: { capable: true, title: "e-Tekisi", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-180.png" },
 };
 
 export const viewport: Viewport = {

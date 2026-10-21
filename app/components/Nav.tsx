@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import { forgetPushOnSignOut } from "../lib/push";
 import { clearSession } from "../lib/session";
 import { useUnreadCount } from "../lib/useUnreadCount";
 import { BellIcon, ClockIcon, GridIcon, HomeIcon, LogoutIcon, MoneyIcon, UserIcon } from "./Icons";
@@ -28,7 +29,8 @@ export function CommuterNav({ current }: { current: "home" | "book" | "profile" 
 
 export function DriverNav({ current }: { current: "dashboard" | "earnings" }) {
   const router = useRouter();
-  const logout = () => {
+  const logout = async () => {
+    await forgetPushOnSignOut();
     clearSession();
     router.replace("/login");
   };

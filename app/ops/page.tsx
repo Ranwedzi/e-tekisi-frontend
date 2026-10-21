@@ -7,6 +7,7 @@ import { Reconciliation } from "../components/Reconciliation";
 import { ratingText } from "../components/RatePrompt";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
 import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
+import { forgetPushOnSignOut } from "../lib/push";
 import { clearSession, signOutTo } from "../lib/session";
 import { useLivePolling } from "../lib/live";
 import type { DocumentSummary, DriverApproval, DriverReview, DriverDocument, Insight, PayoutOps, PayoutStatus } from "../lib/types";
@@ -22,7 +23,8 @@ export default function OpsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"drivers" | "payouts" | "alerts" | "account">("drivers");
 
-  const logout = () => {
+  const logout = async () => {
+    await forgetPushOnSignOut();
     clearSession();
     router.replace("/login");
   };

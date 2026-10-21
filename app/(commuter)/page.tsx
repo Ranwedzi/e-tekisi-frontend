@@ -11,6 +11,7 @@ import { CommuterNav, NotificationBell } from "../components/Nav";
 import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { buildRoutePolyline, geocodeLocation } from "../lib/geo";
 import { RatePrompt, ratingText } from "../components/RatePrompt";
+import { AppPrompts } from "../components/AppPrompts";
 import { usePolling } from "../lib/usePolling";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
@@ -228,6 +229,8 @@ export default function Home() {
           <NotificationBell />
         </div>
       </header>
+
+      <AppPrompts role="COMMUTER" />
 
       <div className="p-4 h-80">
         <div className="relative h-full bg-white rounded-[40px] overflow-hidden shadow-lg border-4 border-white">
