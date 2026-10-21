@@ -27,8 +27,9 @@ const userSvg = `
 
 // The old CARTO basemap URL now needs an API key and rendered "API KEY REQUIRED"
 // tiles. OpenStreetMap's own tiles are fine for development and light use; set
-// NEXT_PUBLIC_MAP_TILE_URL / NEXT_PUBLIC_MAP_ATTRIBUTION to a tile provider for
-// production traffic (OSM's tile usage policy forbids heavy use).
+// NEXT_PUBLIC_MAP_TILE_URL / NEXT_PUBLIC_MAP_ATTRIBUTION for production traffic
+// (OSM's tile usage policy forbids heavy use): "/tiles/{z}/{x}/{y}.png" for the
+// self-hosted tile server (backend repo, docs/MAPS.md), or a tile provider.
 const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTRIBUTION =
   process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ||

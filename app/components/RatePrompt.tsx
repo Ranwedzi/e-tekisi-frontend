@@ -3,6 +3,7 @@ import { useState } from "react";
 import { apiFetch, errorMessage } from "../lib/api";
 import type { Booking } from "../lib/types";
 import { useToast } from "./Feedback";
+import { useT, type T } from "../lib/i18n";
 
 const WINDOW_MS = 7 * 24 * 3600 * 1000;
 const DISMISSED_KEY = "etekisi_rating_dismissed";
@@ -24,8 +25,8 @@ function dismiss(id: number) {
 }
 
 /** "★ 4.6 (23)" or "New" for someone without ratings yet. */
-export function ratingText(average: number | null | undefined, count: number | null | undefined): string {
-  return average != null && count ? `★ ${average.toFixed(1)} (${count})` : "New";
+export function ratingText(average: number | null | undefined, count: number | null | undefined, t?: T): string {
+  return average != null && count ? `★ ${average.toFixed(1)} (${count})` : t ? t("rating.new") : "New";
 }
 
 /**
@@ -34,6 +35,7 @@ export function ratingText(average: number | null | undefined, count: number | n
  */
 export function RatePrompt({ trips, role, onRated }: { trips: Booking[]; role: "COMMUTER" | "DRIVER"; onRated: () => void }) {
   const toast = useToast();
+  const t = useT();
   const [hidden, setHidden] = useState<number[]>(() => (typeof window === "undefined" ? [] : dismissed()));
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState("");
@@ -49,7 +51,7 @@ export function RatePrompt({ trips, role, onRated }: { trips: Booking[]; role: "
       !hidden.includes(b.id),
   );
   if (!trip) return null;
-  const other = role === "COMMUTER" ? (trip.driverName ?? "your driver") : (trip.commuterName ?? "your passenger");
+  const other = role === "COMMUTER" ? (trip.driverName ?? t("rating.yourDriver")) : (trip.commuterName ?? t("rating.yourPassenger"));
 
   const later = () => {
     dismiss(trip.id);
@@ -62,7 +64,7 @@ export function RatePrompt({ trips, role, onRated }: { trips: Booking[]; role: "
     setBusy(true);
     try {
       await apiFetch(`/api/bookings/${trip.id}/rating`, { method: "POST", body: { stars, comment: comment.trim() || null } });
-      toast.success("Thanks for your rating.");
+      toast.success(t("rating.thanks"));
       setStars(0);
       setComment("");
       onRated();
@@ -76,17 +78,17 @@ export function RatePrompt({ trips, role, onRated }: { trips: Booking[]; role: "
   return (
     <div className="fixed inset-0 bg-black/50 z-[3000] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="rate-title">
       <div className="w-full max-w-sm bg-white rounded-[32px] p-6 text-black">
-        <h2 id="rate-title" className="font-black text-lg">How was your trip with {other}?</h2>
+        <h2 id="rate-title" className="font-black text-lg">{t("rating.title", { name: other })}</h2>
         <p className="text-xs font-bold text-gray-400">
           {trip.pickupLocation} → {trip.destination}
         </p>
-        <div className="flex justify-center gap-2 my-5" role="radiogroup" aria-label="Stars">
+        <div className="flex justify-center gap-2 my-5" role="radiogroup" aria-label={t("rating.stars")}>
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               key={n}
               role="radio"
               aria-checked={stars === n}
-              aria-label={`${n} star${n > 1 ? "s" : ""}`}
+              aria-label={n === 1 ? t("rating.oneStar") : t("rating.nStars", { count: n })}
               onClick={() => setStars(n)}
               className={`text-4xl leading-none transition ${n <= stars ? "text-[#FFB800]" : "text-gray-200"}`}
             >
@@ -99,16 +101,16 @@ export function RatePrompt({ trips, role, onRated }: { trips: Booking[]; role: "
           onChange={(e) => setComment(e.target.value)}
           maxLength={300}
           rows={2}
-          aria-label="Comment (optional)"
-          placeholder="Anything to add? (optional)"
+          aria-label={t("rating.comment")}
+          placeholder={t("rating.commentPlaceholder")}
           className="w-full p-3 rounded-2xl border border-gray-200 text-sm font-bold"
         />
         <div className="flex gap-2 mt-4">
           <button onClick={submit} disabled={busy || stars === 0} className="flex-1 py-3 rounded-2xl bg-black text-[#FFD217] font-black text-xs uppercase disabled:opacity-40">
-            {busy ? "Sending…" : "Send rating"}
+            {busy ? t("common.sending") : t("rating.send")}
           </button>
           <button onClick={later} className="px-4 py-3 rounded-2xl bg-gray-100 font-black text-xs uppercase">
-            Not now
+            {t("common.notNow")}
           </button>
         </div>
       </div>

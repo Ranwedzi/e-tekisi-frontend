@@ -6,6 +6,7 @@ import { TaxiIcon } from "../../components/Icons";
 import { Spinner } from "../../components/Spinner";
 import { ApiError, apiFetch } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
+import { LanguagePicker, useLocale } from "../../lib/i18n";
 
 const LiveMap = dynamic(() => import("../../components/LiveMap"), { ssr: false });
 
@@ -26,6 +27,7 @@ export default function SharedTripPage() {
   const [trip, setTrip] = useState<SharedTrip | null>(null);
   const [fetchedAt, setFetchedAt] = useState(0);
   const [gone, setGone] = useState(false);
+  const { t, tag } = useLocale();
 
   usePolling(
     async () => {
@@ -44,20 +46,22 @@ export default function SharedTripPage() {
   if (gone) {
     return (
       <Shell>
-        <h1 className="text-2xl font-black">This link has stopped working</h1>
+        <h1 className="text-2xl font-black">{t("shared.goneTitle")}</h1>
         <p className="text-sm font-bold text-gray-500 mt-2">
-          The trip was finished, the link expired, or the person who shared it stopped sharing.
+          {t("shared.goneNote")}
         </p>
       </Shell>
     );
   }
-  if (!trip) return <Spinner label="Loading the trip" />;
+  if (!trip) return <Spinner label={t("shared.loading")} />;
 
-  const who = trip.commuterFirstName ? `${trip.commuterFirstName}'s` : "A";
+  const name = trip.commuterFirstName;
   if (trip.status !== "IN_PROGRESS") {
     return (
       <Shell>
-        <h1 className="text-2xl font-black">{trip.status === "COMPLETED" ? `${who} trip is finished` : `${who} trip has ended`}</h1>
+        <h1 className="text-2xl font-black">{trip.status === "COMPLETED"
+            ? name ? t("shared.finishedNamed", { name }) : t("shared.finished")
+            : name ? t("shared.endedNamed", { name }) : t("shared.ended")}</h1>
         <p className="text-sm font-bold text-gray-500 mt-2">
           {trip.pickup} → {trip.destination}
         </p>
@@ -69,33 +73,34 @@ export default function SharedTripPage() {
   const minutesAgo = pos?.updatedAt ? Math.max(0, Math.round((fetchedAt - new Date(pos.updatedAt).getTime()) / 60000)) : null;
   return (
     <Shell>
-      <p className="text-[10px] font-black uppercase tracking-widest text-yellow-700">Live trip</p>
-      <h1 className="text-2xl font-black">{who} taxi</h1>
+      <p className="text-[10px] font-black uppercase tracking-widest text-yellow-700">{t("shared.live")}</p>
+      <h1 className="text-2xl font-black">{name ? t("shared.taxiNamed", { name }) : t("shared.taxiAnon")}</h1>
       <p className="text-sm font-bold text-gray-500">
         {trip.pickup} → {trip.destination}
       </p>
       <div className="mt-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Taxi</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("shared.taxi")}</p>
         <p className="font-mono font-black text-2xl tracking-widest">{trip.taxiPlate ?? "—"}</p>
-        {trip.driverFirstName && <p className="text-sm font-bold text-gray-600">Driver: {trip.driverFirstName}</p>}
+        {trip.driverFirstName && <p className="text-sm font-bold text-gray-600">{t("shared.driver", { name: trip.driverFirstName })}</p>}
       </div>
       <div className="mt-4 h-72 rounded-3xl overflow-hidden border border-gray-200">
         {pos ? (
           <LiveMap center={[pos.lat, pos.lng]} nearbyTaxis={[{ lat: pos.lat, lng: pos.lng }]} zoom={15} />
         ) : (
-          <p className="p-6 text-sm font-bold text-gray-400">The taxi&apos;s position isn&apos;t available yet.</p>
+          <p className="p-6 text-sm font-bold text-gray-400">{t("shared.noPosition")}</p>
         )}
       </div>
       {pos && (
         <p className={`text-xs font-bold mt-2 ${pos.stale ? "text-red-600" : "text-gray-400"}`} role="status">
           {pos.stale
-            ? `No update from the taxi for ${minutesAgo ?? "several"} minutes. If you are worried, call them, or 10111 / 112.`
-            : `Updated ${minutesAgo === 0 ? "just now" : `${minutesAgo} min ago`}. This page refreshes by itself.`}
+            ? t("shared.stale", { minutes: minutesAgo ?? t("shared.several") })
+            : minutesAgo === 0
+              ? t("shared.updatedNow")
+              : t("shared.updatedAgo", { minutes: minutesAgo ?? 0 })}
         </p>
       )}
       <p className="text-[11px] font-bold text-gray-400 mt-6">
-        Shared with you through e-Tekisi. The link stops working when the trip ends, or at{" "}
-        {new Date(trip.expiresAt).toLocaleString()}.
+        {t("shared.footer", { time: new Date(trip.expiresAt).toLocaleString(tag) })}
       </p>
     </Shell>
   );
@@ -110,6 +115,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <TaxiIcon className="w-5 h-5" strokeWidth={2.5} />
           </div>
           <span className="font-black">e-Tekisi</span>
+          <LanguagePicker className="ml-auto" />
         </div>
         {children}
       </div>

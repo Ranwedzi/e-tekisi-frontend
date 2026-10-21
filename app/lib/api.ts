@@ -1,6 +1,7 @@
 "use client";
 import { API_BASE } from "./config";
 import { clearSession, extendSession, getSession } from "./session";
+import { errorText, translateNow } from "./i18n";
 
 export { API_BASE };
 
@@ -45,7 +46,7 @@ export function refreshSession(): Promise<"ok" | "ended" | "network"> {
 function sessionEnded(): never {
   clearSession();
   redirectToLogin("expired");
-  throw new ApiError("Please sign in again.", 401, "UNAUTHENTICATED");
+  throw new ApiError(translateNow("api.signInAgain"), 401, "UNAUTHENTICATED");
 }
 
 /** An error response from the backend (RFC 7807 ProblemDetail) or a network failure (status 0). */
@@ -129,14 +130,14 @@ async function request<T>(path: string, opts: ApiOptions, mayRefresh: boolean): 
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
+    throw new ApiError(translateNow("common.offline"), 0, "NETWORK");
   }
 
   if (res.status === 401 && auth && mayRefresh) {
     const renewed = await refreshSession();
     if (renewed === "ok") return request<T>(path, opts, false);
     if (renewed === "ended") sessionEnded();
-    throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
+    throw new ApiError(translateNow("common.offline"), 0, "NETWORK");
   }
 
   const text = await res.text();
@@ -156,7 +157,7 @@ async function request<T>(path: string, opts: ApiOptions, mayRefresh: boolean): 
       (typeof obj.detail === "string" && obj.detail) ||
       (typeof obj.message === "string" && obj.message) ||
       (typeof data === "string" && data) ||
-      `Request failed (${res.status})`;
+      translateNow("api.failed", { status: res.status });
     throw new ApiError(
       message,
       res.status,
@@ -175,13 +176,15 @@ export async function apiBlob(path: string, mayRefresh = true): Promise<Blob> {
   try {
     res = await fetch(`${API_BASE}${path}`, { credentials: "include", headers: { ...SESSION_HEADERS } });
   } catch {
-    throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
+    throw new ApiError(translateNow("common.offline"), 0, "NETWORK");
   }
   if (res.status === 401) {
     if (mayRefresh && (await refreshSession()) === "ok") return apiBlob(path, false);
     sessionEnded();
   }
-  if (!res.ok) throw new ApiError(res.status === 404 ? "That file isn't available." : `Request failed (${res.status})`, res.status);
+  if (!res.ok) {
+    throw new ApiError(res.status === 404 ? translateNow("api.fileMissing") : translateNow("api.failed", { status: res.status }), res.status);
+  }
   return res.blob();
 }
 
@@ -202,11 +205,13 @@ export async function openProtectedFile(path: string) {
 /** A readable message for any thrown value. */
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
+    const translated = errorText(e.code);
+    if (translated) return translated;
     if (e.fieldErrors && Object.keys(e.fieldErrors).length > 0) {
       return Object.values(e.fieldErrors).join(". ");
     }
     return e.message;
   }
   if (e instanceof Error) return e.message;
-  return "Something went wrong.";
+  return translateNow("api.generic");
 }

@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { FeedbackProvider } from "./components/Feedback";
 import { SessionWatcher } from "./components/SessionWatcher";
 import { registerServiceWorker, syncPush } from "./lib/push";
+import { HtmlLang } from "./lib/i18n";
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -12,6 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <FeedbackProvider>
       <SessionWatcher />
+      <HtmlLang />
       {children}
     </FeedbackProvider>
   );

@@ -6,12 +6,15 @@ import { Spinner } from "../components/Spinner";
 import { apiFetch, errorMessage } from "../lib/api";
 import { homeFor, useSession } from "../lib/session";
 import { useUrlSecret } from "../lib/useUrlSecret";
+import { useT } from "../lib/i18n";
 
 /** Opened from the link in the verification email. */
 export default function VerifyEmailPage() {
   const token = useUrlSecret();
   const { session } = useSession();
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // message null: the standard text for the outcome, in the reader's language.
+  const [result, setResult] = useState<{ ok: boolean; message: string | null } | null>(null);
+  const t = useT();
   const sent = useRef(false);
 
   useEffect(() => {
@@ -19,22 +22,25 @@ export default function VerifyEmailPage() {
     sent.current = true;
     if (!token) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setResult({ ok: false, message: "This link is incomplete. Open it straight from the email." });
+      setResult({ ok: false, message: null });
       return;
     }
     apiFetch("/api/auth/verify-email", { method: "POST", auth: false, body: { token } })
-      .then(() => setResult({ ok: true, message: "Your email address is confirmed. You can book and pay now." }))
+      .then(() => setResult({ ok: true, message: null }))
       .catch((e) => setResult({ ok: false, message: errorMessage(e) }));
   }, [token]);
 
-  if (!result) return <Spinner label="Confirming your email" />;
+  if (!result) return <Spinner label={t("verify.confirming")} />;
   return (
-    <AuthCard title={result.ok ? "Email confirmed" : "Couldn't confirm"} subtitle={result.message}>
+    <AuthCard
+      title={result.ok ? t("verify.confirmed") : t("verify.failed")}
+      subtitle={result.message ?? (result.ok ? t("verify.ok") : t("verify.incomplete"))}
+    >
       <Link
         href={session ? homeFor(session.role) : "/login"}
         className="block text-center w-full bg-[#1A1A1A] text-white font-black py-4 rounded-2xl mt-2"
       >
-        {session ? "Continue" : "Sign in"}
+        {session ? t("verify.continue") : t("verify.signIn")}
       </Link>
     </AuthCard>
   );

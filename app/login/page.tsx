@@ -8,6 +8,7 @@ import type { LoginResponse, Role } from "../lib/types";
 import { TaxiIcon } from "../components/Icons";
 import { Spinner } from "../components/Spinner";
 import { StaffMfaStep, type MfaChallenge } from "../components/StaffMfa";
+import { LanguagePicker, useT } from "../lib/i18n";
 
 export default function LoginPage() {
   return (
@@ -29,6 +30,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
+  const t = useT();
 
   const signedIn = (data: LoginResponse) => {
     saveSession(data.userId, data.role, data.sessionExpiresInSeconds);
@@ -42,26 +44,26 @@ function LoginForm() {
 
   const notice =
     params.get("reason") === "expired"
-      ? "Your session has ended. Please sign in again."
+      ? t("login.expired")
       : params.get("reason") === "deleted"
-        ? "Your account has been deleted."
+        ? t("login.deleted")
       : params.get("reason") === "reset"
-        ? "Password changed. Sign in with your new password."
+        ? t("login.reset")
       : params.get("reason") === "everywhere"
-        ? "Signed out on all your devices. Sign in again."
+        ? t("login.everywhere")
       : params.get("reason") === "mfa"
-        ? "Two-step sign-in changed. Sign in again."
+        ? t("login.mfa")
       : params.get("registered") === "1"
-        ? "Account created. We've sent you an email to confirm your address; you can sign in now."
+        ? t("login.registered")
         : params.get("registered") === "driver"
-          ? "Account created. Confirm your email (check your inbox), then sign in to see your status: we check your details before you can take trips."
+          ? t("login.registeredDriver")
           : null;
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!email.trim() || !password) {
-      setError("Enter your email and password.");
+      setError(t("login.enterBoth"));
       return;
     }
     setSubmitting(true);
@@ -77,20 +79,21 @@ function LoginForm() {
       }
       signedIn(data);
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 401 ? "Invalid email or password." : errorMessage(err));
+      setError(err instanceof ApiError && err.status === 401 ? t("login.invalid") : errorMessage(err));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 font-sans relative">
+      <LanguagePicker className="absolute top-6 right-6" />
       <div className="w-20 h-20 bg-[#FFD217] rounded-full flex items-center justify-center mb-6 shadow-xl text-black">
         <TaxiIcon className="w-10 h-10" strokeWidth={2.5} />
       </div>
 
-      <h1 className="text-4xl font-black mb-2 text-[#1A1A1A]">Welcome Back</h1>
-      <p className="text-gray-400 font-bold mb-10 text-sm uppercase tracking-widest">Digital Taxi Gateway</p>
+      <h1 className="text-4xl font-black mb-2 text-[#1A1A1A]">{t("login.welcome")}</h1>
+      <p className="text-gray-400 font-bold mb-10 text-sm uppercase tracking-widest">{t("login.tagline")}</p>
 
       {challenge ? (
         <StaffMfaStep challenge={challenge} onSignedIn={signedIn} />
@@ -99,7 +102,7 @@ function LoginForm() {
         {notice && <p className="p-4 rounded-2xl bg-yellow-50 text-yellow-800 text-sm font-bold">{notice}</p>}
 
         {!staff && (
-        <div className="flex bg-gray-100 p-1 rounded-2xl mb-4 border border-gray-200" role="radiogroup" aria-label="Sign in as">
+        <div className="flex bg-gray-100 p-1 rounded-2xl mb-4 border border-gray-200" role="radiogroup" aria-label={t("login.signInAs")}>
           {(["COMMUTER", "DRIVER"] as const).map((r) => (
             <button
               key={r}
@@ -109,19 +112,19 @@ function LoginForm() {
               onClick={() => setRole(r)}
               className={`flex-1 py-3 rounded-xl font-black text-xs ${role === r ? "bg-white shadow text-black" : "text-gray-400"}`}
             >
-              {r}
+              {t(`role.${r}`)}
             </button>
           ))}
         </div>
         )}
-        {staff && <p className="p-4 rounded-2xl bg-gray-100 text-sm font-bold text-gray-600">Operator sign-in</p>}
+        {staff && <p className="p-4 rounded-2xl bg-gray-100 text-sm font-bold text-gray-600">{t("login.operator")}</p>}
 
         <input
           type="email"
           autoComplete="email"
-          aria-label="Email address"
+          aria-label={t("form.email")}
           className="w-full p-5 bg-gray-50 rounded-[28px] border border-gray-100 outline-none font-bold text-black"
-          placeholder="Email Address"
+          placeholder={t("form.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -130,9 +133,9 @@ function LoginForm() {
           <input
             type={showPass ? "text" : "password"}
             autoComplete="current-password"
-            aria-label="Password"
+            aria-label={t("form.password")}
             className="w-full p-5 bg-gray-50 rounded-[28px] border border-gray-100 outline-none font-bold text-black"
-            placeholder="Password"
+            placeholder={t("form.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -141,14 +144,14 @@ function LoginForm() {
             onClick={() => setShowPass(!showPass)}
             className="absolute right-5 top-6 text-[10px] font-black text-gray-400 uppercase tracking-widest"
           >
-            {showPass ? "Hide" : "Show"}
+            {showPass ? t("form.hide") : t("form.show")}
           </button>
         </div>
 
         {!staff && (
           <p className="text-right px-2 -mt-1">
             <Link href="/forgot-password" className="text-xs font-bold text-gray-400 underline">
-              Forgot password?
+              {t("login.forgot")}
             </Link>
           </p>
         )}
@@ -164,19 +167,19 @@ function LoginForm() {
           disabled={submitting}
           className="w-full bg-[#FFD217] text-black font-black py-6 rounded-[28px] shadow-xl mt-6 active:scale-95 transition-all text-lg disabled:opacity-60"
         >
-          {submitting ? "SIGNING IN..." : "LOGIN"}
+          {submitting ? t("login.signingIn") : t("login.submit")}
         </button>
 
         <p className="text-center mt-4">
           <button type="button" onClick={() => setStaff(!staff)} className="text-[11px] font-bold text-gray-400 underline">
-            {staff ? "Commuter or driver sign-in" : "e-Tekisi staff? Sign in here"}
+            {staff ? t("login.toPublic") : t("login.toStaff")}
           </button>
         </p>
 
         <p className="text-center mt-4 text-sm font-bold text-gray-400">
-          New to e-Tekisi?{" "}
+          {t("login.new")}{" "}
           <Link href="/register" className="text-black underline">
-            Create account
+            {t("login.create")}
           </Link>
         </p>
       </form>

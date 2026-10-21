@@ -7,6 +7,7 @@ import { BackIcon, PinIcon, TrashIcon } from "../../components/Icons";
 import { apiFetch, errorMessage } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
 import type { SavedRank } from "../../lib/types";
+import { useT } from "../../lib/i18n";
 
 export default function SavedRanksPage() {
   const session = useAuthedSession();
@@ -16,6 +17,7 @@ export default function SavedRanksPage() {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   const load = async () => setRanks(await apiFetch<SavedRank[]>(`/api/saved-ranks/${session.userId}`));
   usePolling(load, 60_000);
@@ -23,7 +25,7 @@ export default function SavedRanksPage() {
   const add = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !address.trim()) {
-      toast.error("Give the place a name and an address.");
+      toast.error(t("ranks.needBoth"));
       return;
     }
     setSaving(true);
@@ -31,7 +33,7 @@ export default function SavedRanksPage() {
       await apiFetch(`/api/saved-ranks/${session.userId}`, { method: "POST", body: { name: name.trim(), address: address.trim() } });
       setName("");
       setAddress("");
-      toast.success("Saved.");
+      toast.success(t("ranks.saved"));
       await load();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -41,7 +43,7 @@ export default function SavedRanksPage() {
   };
 
   const remove = async (rank: SavedRank) => {
-    if (!(await confirm({ title: `Remove ${rank.name}?`, confirmLabel: "Remove", danger: true }))) return;
+    if (!(await confirm({ title: t("ranks.removeTitle", { name: rank.name }), confirmLabel: t("ranks.remove"), danger: true }))) return;
     try {
       await apiFetch(`/api/saved-ranks/${rank.id}`, { method: "DELETE" });
       setRanks((list) => list?.filter((r) => r.id !== rank.id) ?? null);
@@ -53,37 +55,37 @@ export default function SavedRanksPage() {
   return (
     <div className="min-h-screen bg-[#F5F5F7] p-6 font-sans">
       <div className="flex items-center gap-4 mb-10">
-        <Link href="/profile" className="p-3 bg-white rounded-2xl shadow-sm" aria-label="Back">
+        <Link href="/profile" className="p-3 bg-white rounded-2xl shadow-sm" aria-label={t("common.backLabel")}>
           <BackIcon />
         </Link>
-        <h1 className="text-2xl font-black">Saved Ranks</h1>
+        <h1 className="text-2xl font-black">{t("ranks.title")}</h1>
       </div>
 
       <form onSubmit={add} className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 mb-8 space-y-3">
         <input
-          aria-label="Name"
-          placeholder="Name (e.g. Home, Work)"
+          aria-label={t("ranks.name")}
+          placeholder={t("ranks.namePlaceholder")}
           maxLength={120}
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold"
         />
         <input
-          aria-label="Rank or address"
-          placeholder="Rank or address (e.g. Bree Taxi Rank)"
+          aria-label={t("ranks.address")}
+          placeholder={t("ranks.addressPlaceholder")}
           maxLength={300}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           className="w-full p-4 bg-gray-50 rounded-2xl outline-none font-bold"
         />
         <button type="submit" disabled={saving} className="w-full bg-black text-[#FFD217] py-4 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-60">
-          {saving ? "Saving..." : "Save place"}
+          {saving ? t("ranks.saving") : t("ranks.save")}
         </button>
       </form>
 
       <div className="space-y-3">
-        {ranks === null && <p className="text-center py-10 text-gray-400 font-bold">Loading...</p>}
-        {ranks?.length === 0 && <p className="text-center py-10 text-gray-400 font-bold">No saved places yet.</p>}
+        {ranks === null && <p className="text-center py-10 text-gray-400 font-bold">{t("common.loadingDots")}</p>}
+        {ranks?.length === 0 && <p className="text-center py-10 text-gray-400 font-bold">{t("ranks.empty")}</p>}
         {ranks?.map((r) => (
           <div key={r.id} className="bg-white p-5 rounded-[28px] shadow-sm border border-gray-100 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
@@ -95,7 +97,7 @@ export default function SavedRanksPage() {
                 <p className="text-xs font-bold text-gray-400 truncate">{r.address}</p>
               </div>
             </div>
-            <button onClick={() => remove(r)} aria-label={`Remove ${r.name}`} className="p-2 text-gray-400 hover:text-red-500 shrink-0">
+            <button onClick={() => remove(r)} aria-label={t("ranks.removeTitle", { name: r.name }).replace(/\?$/, "")} className="p-2 text-gray-400 hover:text-red-500 shrink-0">
               <TrashIcon className="w-5 h-5" />
             </button>
           </div>

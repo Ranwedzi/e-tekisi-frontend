@@ -5,6 +5,7 @@ import { apiFetch, errorMessage } from "../lib/api";
 import { usePolling } from "../lib/usePolling";
 import type { AccountStatus } from "../lib/types";
 import type { Role } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 /**
  * For signed-in commuters and drivers:
@@ -39,6 +40,7 @@ export function AccountGate({ role, children }: { role: Role; children: ReactNod
 
 function TermsPrompt({ role, version, onAccepted }: { role: Role; version: string; onAccepted: () => void }) {
   const [checked, setChecked] = useState(false);
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,18 +59,18 @@ function TermsPrompt({ role, version, onAccepted }: { role: Role; version: strin
   return (
     <div className="min-h-screen bg-[#FFD217] flex items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm bg-white rounded-[40px] p-8 shadow-2xl">
-        <h1 className="text-2xl font-black mb-3">Our terms have changed</h1>
+        <h1 className="text-2xl font-black mb-3">{t("gate.termsChanged")}</h1>
         <p className="text-sm font-bold text-gray-500 mb-6">
-          Please read the updated documents and accept them to keep using e-Tekisi.
+          {t("gate.termsIntro")}
         </p>
         <ul className="space-y-2 mb-6 text-sm font-black underline">
-          <li><Link href="/terms" target="_blank">Terms of use</Link></li>
-          <li><Link href="/privacy" target="_blank">Privacy policy</Link></li>
-          {role === "DRIVER" && <li><Link href="/driver-agreement" target="_blank">Driver agreement</Link></li>}
+          <li><Link href="/terms" target="_blank">{t("legal.terms")}</Link></li>
+          <li><Link href="/privacy" target="_blank">{t("legal.privacy")}</Link></li>
+          {role === "DRIVER" && <li><Link href="/driver-agreement" target="_blank">{t("legal.driverAgreement")}</Link></li>}
         </ul>
         <label className="flex items-start gap-3 text-xs font-bold text-gray-600 mb-6">
           <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 w-5 h-5 accent-black" />
-          I have read and accept these documents.
+          {t("gate.accept")}
         </label>
         {error && <p className="text-sm font-bold text-red-600 mb-3" role="status">{error}</p>}
         <button
@@ -76,7 +78,7 @@ function TermsPrompt({ role, version, onAccepted }: { role: Role; version: strin
           onClick={accept}
           className="w-full bg-[#1A1A1A] text-white font-black py-4 rounded-2xl disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Accept and continue"}
+          {busy ? t("common.saving") : t("gate.acceptContinue")}
         </button>
       </div>
     </div>
@@ -85,6 +87,7 @@ function TermsPrompt({ role, version, onAccepted }: { role: Role; version: strin
 
 function VerifyBanner({ status, onVerified }: { status: AccountStatus; onVerified: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
+  const t = useT();
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,13 +107,13 @@ function VerifyBanner({ status, onVerified }: { status: AccountStatus; onVerifie
   const resend = () =>
     run(async () => {
       await apiFetch("/api/me/verification/email", { method: "POST" });
-      setMsg("Sent. Check your inbox (and spam folder) for the link.");
+      setMsg(t("gate.emailSent"));
     });
   const sendCode = () =>
     run(async () => {
       await apiFetch("/api/me/verification/phone", { method: "POST" });
       setCodeSent(true);
-      setMsg("We've sent you an SMS with a 6-digit code.");
+      setMsg(t("gate.smsSent"));
     });
   const confirm = (e: FormEvent) => {
     e.preventDefault();
@@ -121,23 +124,22 @@ function VerifyBanner({ status, onVerified }: { status: AccountStatus; onVerifie
   };
 
   return (
-    <div className="bg-black text-white px-4 py-3 text-sm" role="region" aria-label="Verify your account">
-      <p className="font-black text-[#FFD217]">Verify your account to book and pay</p>
+    <div className="bg-black text-white px-4 py-3 text-sm" role="region" aria-label={t("gate.verifyRegion")}>
+      <p className="font-black text-[#FFD217]">{t("gate.verifyTitle")}</p>
       <p className="font-bold text-gray-300 text-xs mt-1">
-        We sent a link to your email{status.phoneVerificationAvailable ? " and a code to your phone" : ""}. Open the link, or
-        enter the code here.
+        {status.phoneVerificationAvailable ? t("gate.verifyEmailAndPhone") : t("gate.verifyEmailOnly")}
       </p>
       <div className="flex flex-wrap gap-2 mt-2">
         <button disabled={busy} onClick={resend} className="px-3 py-2 rounded-xl bg-white/10 font-black text-xs uppercase disabled:opacity-50">
-          Resend email
+          {t("gate.resendEmail")}
         </button>
         {status.phoneVerificationAvailable && !codeSent && (
           <button disabled={busy} onClick={sendCode} className="px-3 py-2 rounded-xl bg-white/10 font-black text-xs uppercase disabled:opacity-50">
-            Text me a new code
+            {t("gate.newCode")}
           </button>
         )}
         <button disabled={busy} onClick={onVerified} className="px-3 py-2 rounded-xl bg-white/10 font-black text-xs uppercase disabled:opacity-50">
-          I&apos;ve verified
+          {t("gate.verified")}
         </button>
       </div>
       {status.phoneVerificationAvailable && (
@@ -148,12 +150,12 @@ function VerifyBanner({ status, onVerified }: { status: AccountStatus; onVerifie
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
-            aria-label="SMS code"
-            placeholder="6-digit code"
+            aria-label={t("gate.smsCode")}
+            placeholder={t("gate.codePlaceholder")}
             className="w-32 p-2 rounded-xl bg-white text-black font-black tracking-widest"
           />
           <button type="submit" disabled={busy || code.trim().length !== 6} className="px-3 rounded-xl bg-[#FFD217] text-black font-black text-xs uppercase disabled:opacity-50">
-            Confirm
+            {t("common.confirm")}
           </button>
         </form>
       )}

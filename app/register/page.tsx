@@ -6,6 +6,7 @@ import { ApiError, apiFetch, errorMessage } from "../lib/api";
 import { useLegal } from "../lib/legal";
 import type { Role } from "../lib/types";
 import { ChevronIcon, TaxiIcon } from "../components/Icons";
+import { LanguagePicker, useT } from "../lib/i18n";
 
 type Field = "fullName" | "email" | "phoneNumber" | "taxiPlate" | "licenseNumber" | "password" | "confirmPassword";
 
@@ -24,6 +25,7 @@ export default function Register() {
   const [accepted, setAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
   const legal = useLegal();
+  const t = useT();
 
   // A driver must also accept the driver agreement, so re-confirm after switching.
   useEffect(() => setAccepted(false), [role]);
@@ -32,15 +34,15 @@ export default function Register() {
 
   const validate = (): Partial<Record<Field, string>> => {
     const e: Partial<Record<Field, string>> = {};
-    if (form.fullName.trim().length < 2) e.fullName = "Enter your full name.";
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = "Enter a valid email address.";
-    if (!/^[+]?[0-9 ()-]{8,20}$/.test(form.phoneNumber.trim())) e.phoneNumber = "Enter a valid phone number.";
-    if (form.password.length < 10) e.password = "Use at least 10 characters. A few unrelated words make a good password.";
-    if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match.";
+    if (form.fullName.trim().length < 2) e.fullName = t("register.fullNameError");
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = t("register.emailError");
+    if (!/^[+]?[0-9 ()-]{8,20}$/.test(form.phoneNumber.trim())) e.phoneNumber = t("register.phoneError");
+    if (form.password.length < 10) e.password = t("register.passwordError");
+    if (form.password !== form.confirmPassword) e.confirmPassword = t("register.mismatch");
     if (role === "DRIVER") {
       const plate = normalisePlate(form.taxiPlate);
-      if (!/^[A-Z0-9]{4,10}$/.test(plate)) e.taxiPlate = "4-10 letters or digits, e.g. GP123ABC.";
-      if (!form.licenseNumber.trim()) e.licenseNumber = "Enter your driver's licence number.";
+      if (!/^[A-Z0-9]{4,10}$/.test(plate)) e.taxiPlate = t("register.plateError");
+      if (!form.licenseNumber.trim()) e.licenseNumber = t("register.licenceError");
     }
     return e;
   };
@@ -50,10 +52,10 @@ export default function Register() {
     setFormError(null);
     const localErrors = validate();
     setErrors(localErrors);
-    setTermsError(accepted ? null : "Please accept the terms to create your account.");
+    setTermsError(accepted ? null : t("register.acceptRequired"));
     if (Object.keys(localErrors).length > 0 || !accepted) return;
     if (!legal) {
-      setFormError("Can't reach e-Tekisi. Check your connection and try again.");
+      setFormError(t("common.offline"));
       return;
     }
 
@@ -82,12 +84,12 @@ export default function Register() {
       if (err instanceof ApiError && err.fieldErrors) {
         setErrors(err.fieldErrors as Partial<Record<Field, string>>);
       } else if (err instanceof ApiError && err.code === "EMAIL_TAKEN") {
-        setErrors({ email: "An account with this email already exists." });
+        setErrors({ email: t("register.emailTaken") });
       } else if (err instanceof ApiError && err.code === "WEAK_PASSWORD") {
         setErrors({ password: err.message });
       } else if (err instanceof ApiError && err.code === "TERMS_OUTDATED") {
         setAccepted(false);
-        setTermsError("The terms were just updated. Please open them again and accept the new version.");
+        setTermsError(t("register.termsOutdated"));
       } else {
         setFormError(errorMessage(err));
       }
@@ -121,16 +123,17 @@ export default function Register() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FFD217] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-[#FFD217] flex flex-col items-center justify-center p-4 font-sans">
+      <LanguagePicker className="mb-4" />
       <form onSubmit={handleRegister} noValidate className="w-full max-w-sm bg-white rounded-[40px] p-8 shadow-2xl flex flex-col items-center">
         <div className="w-20 h-20 bg-[#FFD217] rounded-full flex items-center justify-center mb-4 shadow-inner text-black">
           <TaxiIcon className="w-10 h-10" strokeWidth={2.5} />
         </div>
 
         <h1 className="text-4xl font-black text-[#1A1A1A] mb-1">e-Tekisi</h1>
-        <p className="text-gray-400 text-[13px] font-bold mb-8 tracking-tight text-center">South Africa&apos;s Smart Taxi Gateway</p>
+        <p className="text-gray-400 text-[13px] font-bold mb-8 tracking-tight text-center">{t("register.tagline")}</p>
 
-        <div className="w-full bg-gray-100 p-1.5 rounded-2xl flex mb-8" role="radiogroup" aria-label="Account type">
+        <div className="w-full bg-gray-100 p-1.5 rounded-2xl flex mb-8" role="radiogroup" aria-label={t("register.accountType")}>
           {(["COMMUTER", "DRIVER"] as const).map((r) => (
             <button
               key={r}
@@ -140,20 +143,20 @@ export default function Register() {
               onClick={() => setRole(r)}
               className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${role === r ? "bg-white shadow-sm text-black" : "text-gray-400"}`}
             >
-              {r === "COMMUTER" ? "Commuter" : "Driver"}
+              {r === "COMMUTER" ? t("register.commuter") : t("register.driver")}
             </button>
           ))}
         </div>
 
         <div className="w-full space-y-4">
-          {input("fullName", "Full Name", "text", "name")}
-          {input("email", "Email", "email", "email")}
-          {input("phoneNumber", "Phone Number", "tel", "tel")}
+          {input("fullName", t("register.fullName"), "text", "name")}
+          {input("email", t("register.email"), "email", "email")}
+          {input("phoneNumber", t("register.phone"), "tel", "tel")}
 
           {role === "DRIVER" && (
             <>
-              {input("taxiPlate", "Taxi Plate (e.g. GP123ABC)")}
-              {input("licenseNumber", "Driver's Licence Number")}
+              {input("taxiPlate", t("register.plate"))}
+              {input("licenseNumber", t("register.licence"))}
             </>
           )}
 
@@ -162,21 +165,21 @@ export default function Register() {
               <input
                 type={showPass ? "text" : "password"}
                 autoComplete="new-password"
-                aria-label="Password"
+                aria-label={t("form.password")}
                 aria-invalid={!!errors.password}
                 className={inputClass}
-                placeholder="Password (10+ characters)"
+                placeholder={t("register.passwordPlaceholder")}
                 value={form.password}
                 onChange={set("password")}
               />
               <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-5 text-[10px] font-black text-gray-500 uppercase">
-                {showPass ? "Hide" : "Show"}
+                {showPass ? t("form.hide") : t("form.show")}
               </button>
             </div>
             {fieldError("password")}
           </div>
 
-          {input("confirmPassword", "Confirm Password", showPass ? "text" : "password", "new-password")}
+          {input("confirmPassword", t("register.confirm"), showPass ? "text" : "password", "new-password")}
 
           <div>
             <label className="flex items-start gap-3 text-xs font-bold text-gray-600 leading-relaxed px-1">
@@ -188,23 +191,22 @@ export default function Register() {
                 className="mt-0.5 w-5 h-5 accent-black shrink-0"
               />
               <span>
-                I accept the{" "}
+                {t("register.acceptAll")}{" "}
                 <Link href="/terms" target="_blank" className="underline text-black">
-                  terms of use
+                  {t("legal.terms")}
                 </Link>
                 {role === "DRIVER" && (
                   <>
-                    , the{" "}
+                    {" · "}
                     <Link href="/driver-agreement" target="_blank" className="underline text-black">
-                      driver agreement
+                      {t("legal.driverAgreement")}
                     </Link>
                   </>
-                )}{" "}
-                and the{" "}
+                )}
+                {" · "}
                 <Link href="/privacy" target="_blank" className="underline text-black">
-                  privacy policy
+                  {t("legal.privacy")}
                 </Link>
-                , including how my location and trip details are used.
               </span>
             </label>
             {termsError && <p className="text-xs font-bold text-red-600 mt-1 ml-2">{termsError}</p>}
@@ -222,13 +224,13 @@ export default function Register() {
           disabled={submitting}
           className="w-full bg-[#1A1A1A] text-white font-black py-5 rounded-2xl mt-8 shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
         >
-          {submitting ? "CREATING ACCOUNT..." : "REGISTER NOW"}
+          {submitting ? t("register.creating") : t("register.submit")}
           {!submitting && <ChevronIcon className="w-5 h-5" />}
         </button>
         <p className="text-center mt-6 text-sm font-bold text-gray-400">
-          Already have an account?{" "}
+          {t("register.haveAccount")}{" "}
           <Link href="/login" className="text-black underline">
-            Login
+            {t("register.login")}
           </Link>
         </p>
       </form>

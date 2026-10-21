@@ -6,6 +6,7 @@ import { AuthCard, authButton, authInput } from "../components/AuthCard";
 import { Spinner } from "../components/Spinner";
 import { ApiError, apiFetch, errorMessage } from "../lib/api";
 import { useUrlSecret } from "../lib/useUrlSecret";
+import { useT } from "../lib/i18n";
 
 /** Opened from the link in the password-reset email. */
 export default function ResetPasswordPage() {
@@ -16,13 +17,14 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [linkDead, setLinkDead] = useState(false);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   if (token === undefined) return <Spinner />;
   if (!token) {
     return (
-      <AuthCard title="Link incomplete" subtitle="Open the link straight from the email, or ask for a new one.">
+      <AuthCard title={t("reset.incomplete")} subtitle={t("reset.incompleteNote")}>
         <Link href="/forgot-password" className="block text-center font-black underline">
-          Ask for a new link
+          {t("reset.askNew")}
         </Link>
       </AuthCard>
     );
@@ -31,8 +33,8 @@ export default function ResetPasswordPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password.length < 10) return setError("Use at least 10 characters. A few unrelated words make a good password.");
-    if (password !== confirm) return setError("The passwords don't match.");
+    if (password.length < 10) return setError(t("register.passwordError"));
+    if (password !== confirm) return setError(t("reset.mismatch"));
     setBusy(true);
     try {
       await apiFetch("/api/auth/password/reset", { method: "POST", auth: false, body: { token, newPassword: password } });
@@ -45,15 +47,15 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <AuthCard title="Choose a new password" subtitle="You'll be signed out on your other devices.">
+    <AuthCard title={t("reset.title")} subtitle={t("reset.subtitle")}>
       <form onSubmit={submit} noValidate className="space-y-4">
         <input
           type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          aria-label="New password"
-          placeholder="New password (10+ characters)"
+          aria-label={t("form.newPassword")}
+          placeholder={t("form.newPasswordPlaceholder")}
           className={authInput}
         />
         <input
@@ -61,8 +63,8 @@ export default function ResetPasswordPage() {
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          aria-label="Confirm new password"
-          placeholder="Confirm new password"
+          aria-label={t("form.confirmNewPassword")}
+          placeholder={t("form.confirmNewPassword")}
           className={authInput}
         />
         {error && (
@@ -70,13 +72,13 @@ export default function ResetPasswordPage() {
             {error}{" "}
             {linkDead && (
               <Link href="/forgot-password" className="underline">
-                Ask for a new link.
+                {t("reset.askNewSentence")}
               </Link>
             )}
           </p>
         )}
         <button type="submit" disabled={busy} className={authButton}>
-          {busy ? "SAVING..." : "SAVE PASSWORD"}
+          {busy ? t("forgot.savingCaps") : t("reset.save")}
         </button>
       </form>
     </AuthCard>

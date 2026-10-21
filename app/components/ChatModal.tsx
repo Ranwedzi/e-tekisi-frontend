@@ -6,10 +6,13 @@ import type { ChatMessage } from "../lib/types";
 import { useAuthedSession } from "./RequireAuth";
 import { useToast } from "./Feedback";
 import { CloseIcon } from "./Icons";
+import { useT } from "../lib/i18n";
 
 /** Trip chat between the booking's commuter and driver. */
-export default function ChatModal({ bookingId, title = "Live Chat", onClose }: { bookingId: number; title?: string; onClose: () => void }) {
+export default function ChatModal({ bookingId, title, onClose }: { bookingId: number; title?: string; onClose: () => void }) {
   const session = useAuthedSession();
+  const t = useT();
+  const heading = title ?? t("chat.title");
   const toast = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -51,16 +54,16 @@ export default function ChatModal({ bookingId, title = "Live Chat", onClose }: {
   const isMine = (m: ChatMessage) => m.senderId === session.userId && m.senderRole === session.role;
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[3000] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 bg-black/80 z-[3000] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={heading}>
       <div className="w-full max-w-md bg-white rounded-[40px] p-6 h-[75vh] flex flex-col shadow-2xl">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="font-black text-xl text-black uppercase tracking-tighter">{title}</h2>
-          <button onClick={onClose} aria-label="Close chat" className="p-2 bg-gray-100 rounded-full active:scale-90 transition text-black">
+          <h2 className="font-black text-xl text-black uppercase tracking-tighter">{heading}</h2>
+          <button onClick={onClose} aria-label={t("chat.close")} className="p-2 bg-gray-100 rounded-full active:scale-90 transition text-black">
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto space-y-3 mb-6 no-scrollbar px-2 flex flex-col">
-          {messages.length === 0 && <p className="text-center text-sm font-bold text-gray-400 mt-10">No messages yet. Say hello!</p>}
+          {messages.length === 0 && <p className="text-center text-sm font-bold text-gray-400 mt-10">{t("chat.empty")}</p>}
           {messages.map((m) => (
             <div
               key={m.id}
@@ -76,12 +79,12 @@ export default function ChatModal({ bookingId, title = "Live Chat", onClose }: {
             value={text}
             maxLength={1000}
             onChange={(e) => setText(e.target.value)}
-            aria-label="Message"
+            aria-label={t("chat.message")}
             className="flex-1 p-4 bg-transparent outline-none font-bold text-black"
-            placeholder="Type a message..."
+            placeholder={t("chat.placeholder")}
           />
           <button type="submit" disabled={sending || !text.trim()} className="bg-black text-[#FFD217] px-6 rounded-2xl font-black text-xs uppercase active:scale-95 transition disabled:opacity-50">
-            Send
+            {t("chat.send")}
           </button>
         </form>
       </div>
