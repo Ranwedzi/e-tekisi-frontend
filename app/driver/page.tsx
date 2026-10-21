@@ -13,6 +13,7 @@ import { Spinner } from "../components/Spinner";
 import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { usePolling } from "../lib/usePolling";
 import { RatePrompt, ratingText } from "../components/RatePrompt";
+import { AppPrompts } from "../components/AppPrompts";
 import { directionsUrl, distanceKm, formatKm } from "../lib/distance";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
@@ -181,6 +182,8 @@ export default function DriverDashboard() {
         </div>
         <NotificationBell dark />
       </header>
+
+      <AppPrompts role="DRIVER" dark />
 
       <div className="p-4 h-80">
         <div className="relative h-full bg-[#262626] rounded-[40px] overflow-hidden border-4 border-[#333] shadow-2xl">

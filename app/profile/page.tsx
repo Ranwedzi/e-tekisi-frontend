@@ -1,11 +1,12 @@
 "use client";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RequireAuth, useAuthedSession } from "../components/RequireAuth";
 import { BackIcon, ChevronIcon, ClockIcon, MoneyIcon, PinIcon, QueueIcon, WalletIcon } from "../components/Icons";
 import { Spinner } from "../components/Spinner";
 import { apiFetch, errorMessage } from "../lib/api";
+import { disablePush, enablePush, forgetPushOnSignOut, pushState, type PushState } from "../lib/push";
 import { clearSession, homeFor, signOutTo } from "../lib/session";
 import { usePolling } from "../lib/usePolling";
 import type { Commuter, Driver, Wallet } from "../lib/types";
@@ -39,7 +40,8 @@ function Profile() {
     }
   }, 15_000);
 
-  const logout = () => {
+  const logout = async () => {
+    await forgetPushOnSignOut();
     clearSession();
     router.replace("/login");
   };
@@ -105,9 +107,75 @@ function Profile() {
         )}
       </div>
 
+      <Notifications />
       <ChangePassword />
       <YourData />
     </div>
+  );
+}
+
+/** Push notifications on this phone or computer (each device is turned on separately). */
+function Notifications() {
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    pushState().then((s) => alive && setState(s));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setState(state === "on" ? await disablePush() : await enablePush());
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const note: Record<PushState, string> = {
+    on: "On for this device. You'll be told about offers, arrivals and trip updates even with the app closed.",
+    off: "Off for this device.",
+    blocked: "Blocked in your browser settings. Allow notifications for this site there, then come back.",
+    unsupported: "This browser can't show notifications. On iPhone, add e-Tekisi to your home screen first.",
+    "disabled-on-server": "Notifications aren't available right now.",
+  };
+
+  return (
+    <section className="mt-10" aria-labelledby="notifications-heading">
+      <h3 id="notifications-heading" className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase mb-3 px-1">
+        Notifications
+      </h3>
+      <div className="p-5 bg-white border border-gray-100 rounded-[28px] shadow-sm flex items-center gap-4">
+        <p className="flex-1 text-sm font-bold text-gray-600" role="status">
+          {state ? note[state] : "Checking…"}
+        </p>
+        {(state === "on" || state === "off") && (
+          <button
+            role="switch"
+            aria-checked={state === "on"}
+            aria-label="Push notifications on this device"
+            disabled={busy}
+            onClick={() => void toggle()}
+            className={`w-14 h-8 rounded-full p-1 transition shrink-0 disabled:opacity-50 ${state === "on" ? "bg-[#FFD217]" : "bg-gray-200"}`}
+          >
+            <span className={`block w-6 h-6 rounded-full bg-white shadow transition ${state === "on" ? "translate-x-6" : ""}`} />
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="text-sm font-bold text-red-600 mt-2 px-1" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
