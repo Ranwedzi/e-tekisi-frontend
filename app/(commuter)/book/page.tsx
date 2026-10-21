@@ -7,6 +7,7 @@ import { BackIcon, ClockIcon } from "../../components/Icons";
 import { geocodeLocation } from "../../lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
 import type { CreateBookingResponse } from "../../lib/types";
+import { useT } from "../../lib/i18n";
 
 export default function BookLater() {
   const router = useRouter();
@@ -15,15 +16,16 @@ export default function BookLater() {
   const [destination, setDestination] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [loading, setLoading] = useState(false);
+  const t = useT();
 
   const handleBooking = async (e: FormEvent) => {
     e.preventDefault();
     if (!pickupLocation.trim() || !destination.trim() || !scheduledTime) {
-      toast.error("Please fill in all fields.");
+      toast.error(t("book.fillAll"));
       return;
     }
     if (new Date(scheduledTime).getTime() < Date.now()) {
-      toast.error("Choose a departure time in the future.");
+      toast.error(t("book.future"));
       return;
     }
     setLoading(true);
@@ -46,10 +48,10 @@ export default function BookLater() {
   return (
     <div className="min-h-screen bg-white p-6 font-sans">
       <div className="flex items-center justify-between mb-10">
-        <Link href="/" className="p-3 bg-gray-50 rounded-2xl" aria-label="Back">
+        <Link href="/" className="p-3 bg-gray-50 rounded-2xl" aria-label={t("common.backLabel")}>
           <BackIcon />
         </Link>
-        <h1 className="text-xl font-black">Schedule Trip</h1>
+        <h1 className="text-xl font-black">{t("book.title")}</h1>
         <div className="w-12" />
       </div>
 
@@ -57,16 +59,16 @@ export default function BookLater() {
         <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mb-4">
           <ClockIcon className="w-10 h-10" />
         </div>
-        <p className="text-gray-400 font-bold text-center px-6">Book your taxi in advance.</p>
+        <p className="text-gray-400 font-bold text-center px-6">{t("book.intro")}</p>
       </div>
 
       <form onSubmit={handleBooking} className="space-y-6">
         <div className="space-y-2">
-          <label htmlFor="pickup" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Pick-up Location</label>
+          <label htmlFor="pickup" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t("book.pickup")}</label>
           <input
             id="pickup"
             className="w-full p-5 bg-gray-50 rounded-[24px] border border-gray-100 outline-none font-bold"
-            placeholder="e.g. Bree Taxi Rank"
+            placeholder={t("book.pickupExample")}
             maxLength={200}
             value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
@@ -74,11 +76,11 @@ export default function BookLater() {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="destination" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Destination</label>
+          <label htmlFor="destination" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t("home.destination")}</label>
           <input
             id="destination"
             className="w-full p-5 bg-gray-50 rounded-[24px] border border-gray-100 outline-none font-bold"
-            placeholder="e.g. Sandton City"
+            placeholder={t("book.destinationExample")}
             maxLength={200}
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
@@ -86,7 +88,7 @@ export default function BookLater() {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="when" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Departure Time</label>
+          <label htmlFor="when" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t("book.when")}</label>
           <input
             id="when"
             type="datetime-local"
@@ -101,7 +103,7 @@ export default function BookLater() {
           disabled={loading}
           className="w-full bg-black text-white font-black py-6 rounded-[24px] shadow-xl mt-10 active:scale-95 transition-transform disabled:opacity-60"
         >
-          {loading ? "SAVING..." : "CONFIRM BOOKING"}
+          {loading ? t("forgot.savingCaps") : t("book.confirm")}
         </button>
       </form>
     </div>

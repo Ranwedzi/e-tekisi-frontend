@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { enablePush, pushState, type PushState } from "../lib/push";
+import { useT } from "../lib/i18n";
 
 // Two dismissible cards on the home screens: turn on notifications, and
 // install the app. Each shows only when it applies and hasn't been dismissed.
@@ -47,6 +48,7 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
   const [iosInstall, setIosInstall] = useState(false);
   const [installHidden, setInstallHidden] = useState(true);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     let alive = true;
@@ -77,8 +79,8 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
   const muted = dark ? "text-gray-400" : "text-gray-500";
   const why =
     role === "DRIVER"
-      ? "Hear about trip requests near you and accepted offers, even with the app closed."
-      : "Know the moment a driver offers you a ride or arrives, even with the app closed.";
+      ? t("prompts.driverWhy")
+      : t("prompts.commuterWhy");
 
   const showPush = !pushHidden && push === "off";
   const showInstall = !installHidden && (installEvent !== null || iosInstall);
@@ -87,8 +89,8 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
   return (
     <div className="px-6 pt-4 space-y-3">
       {showPush && (
-        <div className={`p-5 rounded-[24px] border shadow-sm ${card}`} role="region" aria-label="Notifications">
-          <p className="font-black text-sm">Turn on notifications</p>
+        <div className={`p-5 rounded-[24px] border shadow-sm ${card}`} role="region" aria-label={t("prompts.notificationsRegion")}>
+          <p className="font-black text-sm">{t("prompts.pushTitle")}</p>
           <p className={`text-xs mt-1 ${muted}`}>{why}</p>
           <div className="flex gap-2 mt-4">
             <button
@@ -105,7 +107,7 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
               }}
               className="flex-1 bg-[#FFD217] text-black py-3 rounded-2xl font-black text-xs uppercase disabled:opacity-50"
             >
-              {busy ? "Turning on..." : "Turn on"}
+              {busy ? t("prompts.turningOn") : t("prompts.turnOn")}
             </button>
             <button
               onClick={() => {
@@ -114,18 +116,18 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
               }}
               className={`px-4 py-3 rounded-2xl font-black text-xs uppercase ${muted}`}
             >
-              Not now
+              {t("common.notNow")}
             </button>
           </div>
         </div>
       )}
       {showInstall && (
-        <div className={`p-5 rounded-[24px] border shadow-sm ${card}`} role="region" aria-label="Install the app">
-          <p className="font-black text-sm">Add e-Tekisi to your home screen</p>
+        <div className={`p-5 rounded-[24px] border shadow-sm ${card}`} role="region" aria-label={t("prompts.installRegion")}>
+          <p className="font-black text-sm">{t("prompts.installTitle")}</p>
           <p className={`text-xs mt-1 ${muted}`}>
             {installEvent
-              ? "Opens like an app, full screen, and works with notifications."
-              : "In Safari, tap the Share button, then “Add to Home Screen”. On iPhone, notifications work once it's added."}
+              ? t("prompts.installWhy")
+              : t("prompts.installIos")}
           </p>
           <div className="flex gap-2 mt-4">
             {installEvent && (
@@ -138,7 +140,7 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
                 }}
                 className="flex-1 bg-black text-white py-3 rounded-2xl font-black text-xs uppercase"
               >
-                Install
+                {t("prompts.install")}
               </button>
             )}
             <button
@@ -148,7 +150,7 @@ export function AppPrompts({ dark = false, role }: { dark?: boolean; role: "COMM
               }}
               className={`px-4 py-3 rounded-2xl font-black text-xs uppercase ${muted} ${installEvent ? "" : "flex-1 text-left px-0"}`}
             >
-              {installEvent ? "Not now" : "Got it"}
+              {installEvent ? t("common.notNow") : t("prompts.gotIt")}
             </button>
           </div>
         </div>

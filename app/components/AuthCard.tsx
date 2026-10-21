@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { TaxiIcon } from "./Icons";
+import { LanguagePicker } from "../lib/i18n";
 
 /** The yellow full-screen card used by the account-recovery pages. */
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#FFD217] flex items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm bg-white rounded-[40px] p-8 shadow-2xl flex flex-col items-center">
+        <LanguagePicker className="self-end mb-2" />
         <div className="w-16 h-16 bg-[#FFD217] rounded-full flex items-center justify-center mb-4 shadow-inner text-black">
           <TaxiIcon className="w-8 h-8" strokeWidth={2.5} />
         </div>

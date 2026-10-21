@@ -7,30 +7,15 @@ import { useToast } from "../../components/Feedback";
 import { apiFetch, errorMessage, openProtectedFile } from "../../lib/api";
 import { useLivePolling } from "../../lib/live";
 import type { DocumentSummary, DocumentType, DriverDocument } from "../../lib/types";
+import { useT } from "../../lib/i18n";
 
-const LABEL: Record<DocumentType, string> = {
-  DRIVERS_LICENCE: "Driver's licence",
-  PRDP: "Professional driving permit (PrDP)",
-  OPERATING_LICENCE: "Operating licence",
-  ROADWORTHY: "Roadworthy certificate",
-  VEHICLE_PHOTO: "Photo of your taxi",
-  ID_DOCUMENT: "ID document",
-  OTHER: "Other",
-};
 const HAS_EXPIRY: DocumentType[] = ["DRIVERS_LICENCE", "PRDP", "OPERATING_LICENCE", "ROADWORTHY"];
 const OPTIONAL: DocumentType[] = ["ROADWORTHY", "VEHICLE_PHOTO"];
-
-const STATUS_TEXT: Record<DriverDocument["status"], string> = {
-  SUBMITTED: "Waiting for review",
-  ACCEPTED: "Accepted",
-  REJECTED: "Not accepted",
-  EXPIRED: "Expired",
-  SUPERSEDED: "Replaced",
-};
 
 /** Upload the documents operators check before a driver can take trips. */
 export default function DriverDocumentsPage() {
   const [data, setData] = useState<DocumentSummary | null>(null);
+  const tr = useT();
   const load = async () => setData(await apiFetch<DocumentSummary>("/api/me/documents"));
   useLivePolling(load, ["documents"], 30_000, 60_000);
 
@@ -40,15 +25,15 @@ export default function DriverDocumentsPage() {
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white font-sans p-6 pb-32">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/driver" className="p-3 bg-[#262626] rounded-2xl text-[#FFD217] active:scale-90 transition shadow-lg border border-[#333]" aria-label="Back">
+        <Link href="/driver" className="p-3 bg-[#262626] rounded-2xl text-[#FFD217] active:scale-90 transition shadow-lg border border-[#333]" aria-label={tr("common.backLabel")}>
           <BackIcon />
         </Link>
-        <h1 className="text-2xl font-black uppercase tracking-tighter">My Documents</h1>
+        <h1 className="text-2xl font-black uppercase tracking-tighter">{tr("docs.title")}</h1>
       </div>
       <p className="text-sm font-bold text-gray-400 mb-6">
         {data.missing.length === 0
-          ? "All required documents are accepted."
-          : "Take a clear photo of each document, or upload a PDF. Operators check them before you can take trips. Files are stored encrypted and only e-Tekisi operators can see them."}
+          ? tr("docs.allAccepted")
+          : tr("docs.intro")}
       </p>
       <div className="space-y-4">
         {types.map((t) => (
@@ -80,12 +65,14 @@ function DocumentRow({
   const [file, setFile] = useState<File | null>(null);
   const [expiresOn, setExpiresOn] = useState("");
   const [busy, setBusy] = useState(false);
+  const t = useT();
+  const label = t(`doc.${type}`);
   const needsUpload = !current || current.status === "REJECTED" || current.status === "EXPIRED";
 
   const upload = async () => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("That file is over 5 MB. Take the photo again at a lower resolution.");
+      toast.error(t("docs.tooBig"));
       return;
     }
     const form = new FormData();
@@ -95,7 +82,7 @@ function DocumentRow({
     setBusy(true);
     try {
       await apiFetch("/api/me/documents", { method: "POST", body: form });
-      toast.success(`${LABEL[type]} uploaded.`);
+      toast.success(t("docs.uploaded", { document: label }));
       setFile(null);
       setExpiresOn("");
       await onChanged();
@@ -114,30 +101,30 @@ function DocumentRow({
         : "text-[#FFD217]";
 
   return (
-    <section className="bg-[#262626] border border-[#333] rounded-[24px] p-5" aria-label={LABEL[type]}>
+    <section className="bg-[#262626] border border-[#333] rounded-[24px] p-5" aria-label={label}>
       <div className="flex justify-between items-start gap-3">
         <div>
-          <p className="font-black">{LABEL[type]}</p>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{required ? "Required" : "Optional"}</p>
+          <p className="font-black">{label}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{required ? t("docs.required") : t("docs.optional")}</p>
         </div>
-        <p className={`text-xs font-black uppercase ${tone}`}>{current ? STATUS_TEXT[current.status] : "Not uploaded"}</p>
+        <p className={`text-xs font-black uppercase ${tone}`}>{current ? t(`docStatus.${current.status}`) : t("docs.notUploaded")}</p>
       </div>
       {current && (
         <div className="mt-3 text-xs font-bold text-gray-400 space-y-1">
           <p>
             {current.fileName}
-            {current.expiresOn ? ` · expires ${current.expiresOn}` : ""}{" "}
+            {current.expiresOn ? ` · ${t("docs.expires", { date: current.expiresOn })}` : ""}{" "}
             <button onClick={() => openProtectedFile(`/api/me/documents/${current.id}/file`).catch((e) => toast.error(errorMessage(e)))} className="underline text-gray-300">
-              View
+              {t("docs.view")}
             </button>
           </p>
-          {current.reviewNote && <p className="text-red-300">Reason: {current.reviewNote}</p>}
+          {current.reviewNote && <p className="text-red-300">{t("docs.reason", { reason: current.reviewNote })}</p>}
         </div>
       )}
       {(needsUpload || current?.status === "SUBMITTED") && (
         <div className="mt-4 space-y-3">
           <label className="block">
-            <span className="sr-only">{`Choose ${LABEL[type]} file`}</span>
+            <span className="sr-only">{t("docs.choose", { document: label })}</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -148,7 +135,7 @@ function DocumentRow({
           </label>
           {HAS_EXPIRY.includes(type) && (
             <label className="flex items-center gap-3 text-xs font-bold text-gray-400">
-              Expiry date
+              {t("docs.expiry")}
               <input
                 type="date"
                 value={expiresOn}
@@ -162,7 +149,7 @@ function DocumentRow({
             disabled={!file || busy}
             className="w-full py-3 rounded-2xl bg-[#FFD217] text-black font-black text-xs uppercase disabled:opacity-40"
           >
-            {busy ? "Uploading…" : current?.status === "SUBMITTED" ? "Replace" : "Upload"}
+            {busy ? t("docs.uploading") : current?.status === "SUBMITTED" ? t("docs.replace") : t("docs.upload")}
           </button>
         </div>
       )}

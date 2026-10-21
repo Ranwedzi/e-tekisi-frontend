@@ -16,6 +16,7 @@ import { usePolling } from "../lib/usePolling";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
 import type { Booking, Commuter, CreateBookingResponse, LatLng, NearbyTaxi, Wallet } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 const LiveMap = dynamic(() => import("../components/LiveMap"), { ssr: false });
 
@@ -25,6 +26,7 @@ export default function Home() {
   const session = useAuthedSession();
   const toast = useToast();
   const confirm = useConfirm();
+  const t = useT();
   const { coords } = useGeolocation();
 
   const [user, setUser] = useState<Commuter | null>(null);
@@ -100,7 +102,7 @@ export default function Home() {
   const handleRequest = async (e: FormEvent) => {
     e.preventDefault();
     if (!from.trim() || !to.trim()) {
-      toast.error("Enter a pick-up point and a destination.");
+      toast.error(t("home.needBoth"));
       return;
     }
     setSubmitting(true);
@@ -131,12 +133,18 @@ export default function Home() {
   };
 
   const handleCancel = async (trip: Booking) => {
-    const refundNote = trip.status === "ACCEPTED" ? " Your fare will be refunded to your wallet." : "";
-    const ok = await confirm({ title: "Cancel your ride?", message: `This can't be undone.${refundNote}`, confirmLabel: "Cancel ride", cancelLabel: "Keep ride", danger: true });
+    const refundNote = trip.status === "ACCEPTED" ? ` ${t("home.cancelRefundNote")}` : "";
+    const ok = await confirm({
+      title: t("home.cancelTitle"),
+      message: `${t("home.cancelMessage")}${refundNote}`,
+      confirmLabel: t("home.cancelConfirm"),
+      cancelLabel: t("home.cancelKeep"),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await apiFetch(`/api/bookings/${trip.id}/cancel`, { method: "PUT" });
-      toast.success(trip.status === "ACCEPTED" ? "Ride cancelled and refunded." : "Ride request cancelled.");
+      toast.success(trip.status === "ACCEPTED" ? t("home.cancelledRefunded") : t("home.requestCancelled"));
       await load();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -148,17 +156,17 @@ export default function Home() {
     try {
       if (accept) {
         await apiFetch(`/api/bookings/${trip.id}/accept-offer`, { method: "PUT", idempotencyKey: newIdempotencyKey() });
-        toast.success(`Offer accepted. R${((trip.fare ?? 0) + (trip.tip ?? 0)).toFixed(2)} paid from your wallet.`);
+        toast.success(t("home.offerAccepted", { amount: ((trip.fare ?? 0) + (trip.tip ?? 0)).toFixed(2) }));
       } else {
         await apiFetch(`/api/bookings/${trip.id}/decline-offer`, { method: "PUT" });
-        toast.info("Offer declined. We're still looking for a driver.");
+        toast.info(t("home.offerDeclined"));
       }
       await load();
     } catch (err) {
       if (err instanceof ApiError && err.code === "INSUFFICIENT_FUNDS") {
-        toast.error(`Your wallet has R${Number(err.body?.balance ?? 0).toFixed(2)}. Top up, then accept before the offer expires.`);
+        toast.error(t("home.insufficient", { balance: Number(err.body?.balance ?? 0).toFixed(2) }));
       } else if (err instanceof ApiError && err.code === "OFFER_NOT_AVAILABLE") {
-        toast.error("That offer has expired or was withdrawn.");
+        toast.error(t("home.offerGone"));
         await load();
       } else {
         toast.error(errorMessage(err));
@@ -170,17 +178,17 @@ export default function Home() {
 
   const handlePanic = async (trip: Booking) => {
     const ok = await confirm({
-      title: "Send an emergency alert?",
-      message: "e-Tekisi operators will be alerted right away with your trip details. If you are in immediate danger, also call 10111 or 112.",
-      confirmLabel: "Send alert",
+      title: t("safety.panicTitle"),
+      message: t("safety.panicMessage"),
+      confirmLabel: t("safety.panicConfirm"),
       danger: true,
     });
     if (!ok) return;
     try {
       await apiFetch("/api/agents/safety/panic", { method: "POST", query: { bookingId: trip.id } });
-      toast.success("Alert sent. An operator will follow up.");
+      toast.success(t("safety.panicSent"));
     } catch (err) {
-      toast.error(`Alert failed: ${errorMessage(err)}. Call 10111 or 112.`);
+      toast.error(t("safety.panicFailed", { error: errorMessage(err) }));
     }
   };
 
@@ -188,12 +196,12 @@ export default function Home() {
     try {
       const { url } = await apiFetch<{ url: string }>(`/api/bookings/${trip.id}/share`, { method: "POST" });
       setSharing(true);
-      const text = "Follow my taxi on e-Tekisi until I arrive:";
+      const text = t("share.text");
       if (typeof navigator.share === "function") {
-        await navigator.share({ title: "My e-Tekisi trip", text, url }).catch(() => {});
+        await navigator.share({ title: t("share.title"), text, url }).catch(() => {});
       } else {
         await navigator.clipboard.writeText(`${text} ${url}`);
-        toast.success("Link copied. Send it to someone you trust.");
+        toast.success(t("share.copied"));
       }
     } catch (err) {
       toast.error(errorMessage(err));
@@ -204,7 +212,7 @@ export default function Home() {
     try {
       await apiFetch(`/api/bookings/${trip.id}/share`, { method: "DELETE" });
       setSharing(false);
-      toast.success("Sharing stopped. The link no longer works.");
+      toast.success(t("share.stopped"));
     } catch (err) {
       toast.error(errorMessage(err));
     }
@@ -218,12 +226,12 @@ export default function Home() {
             {user?.fullName?.charAt(0) || "?"}
           </div>
           <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter">Heita!</p>
-            <p className="font-black text-lg">{user?.fullName || "Syncing..."}</p>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter">{t("home.greeting")}</p>
+            <p className="font-black text-lg">{user?.fullName || t("common.syncing")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/wallet" className="px-4 py-3 bg-gray-50 rounded-2xl font-black text-sm" aria-label="Wallet balance">
+          <Link href="/wallet" className="px-4 py-3 bg-gray-50 rounded-2xl font-black text-sm" aria-label={t("home.walletBalance")}>
             R{wallet ? wallet.balance.toFixed(2) : "--"}
           </Link>
           <NotificationBell />
@@ -236,42 +244,42 @@ export default function Home() {
         <div className="relative h-full bg-white rounded-[40px] overflow-hidden shadow-lg border-4 border-white">
           <LiveMap center={coords} nearbyTaxis={activeTrip && driverPos ? [driverPos] : nearbyTaxis} routePath={currentRoute?.path ?? []} />
           {routeStatus === "loading" && (
-            <div className="absolute top-4 left-4 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full z-[1000]">Building route...</div>
+            <div className="absolute top-4 left-4 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full z-[1000]">{t("home.buildingRoute")}</div>
           )}
           {routeStatus === "error" && (
-            <div className="absolute top-4 left-4 bg-red-500/90 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full z-[1000]">Route unavailable</div>
+            <div className="absolute top-4 left-4 bg-red-500/90 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full z-[1000]">{t("home.routeUnavailable")}</div>
           )}
           <div className="absolute bottom-4 left-4 right-20 bg-white/90 backdrop-blur-md p-4 rounded-[24px] shadow-xl z-[1000]">
-            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">Taxis Nearby</p>
-            <p className="text-sm font-black">{nearbyTaxis.length} active</p>
+            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">{t("home.taxisNearby")}</p>
+            <p className="text-sm font-black">{t("home.activeCount", { count: nearbyTaxis.length })}</p>
           </div>
         </div>
       </div>
 
       <div className="p-4">
         <form onSubmit={handleRequest} className="bg-white rounded-[40px] p-8 shadow-xl border border-gray-50">
-          <h2 className="text-2xl font-black mb-6">Start Your Trip</h2>
+          <h2 className="text-2xl font-black mb-6">{t("home.startTrip")}</h2>
           <input
-            aria-label="Pick-up point"
+            aria-label={t("home.pickup")}
             className="w-full p-5 bg-gray-50 rounded-2xl mb-4 outline-none font-bold"
-            placeholder="Pick-up Point"
+            placeholder={t("home.pickup")}
             maxLength={200}
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
           <input
-            aria-label="Destination"
+            aria-label={t("home.destination")}
             className="w-full p-5 bg-gray-50 rounded-2xl mb-6 outline-none font-bold"
-            placeholder="Destination"
+            placeholder={t("home.destination")}
             maxLength={200}
             value={to}
             onChange={(e) => setTo(e.target.value)}
           />
           <button type="submit" disabled={submitting} className="w-full bg-[#FFD217] text-black font-black py-5 rounded-2xl shadow-xl disabled:opacity-60">
-            {submitting ? "SENDING..." : "Request Taxi"}
+            {submitting ? t("home.sending") : t("home.requestTaxi")}
           </button>
           <p className="text-[11px] font-bold text-gray-400 mt-4 text-center">
-            Drivers offer a fare. You only pay, from your wallet, when you accept one.
+            {t("home.howFares")}
           </p>
         </form>
       </div>
@@ -279,27 +287,27 @@ export default function Home() {
       {offeredTrip && (
         <div className="fixed bottom-28 left-6 right-6 bg-white p-6 rounded-[32px] shadow-2xl border-2 border-[#FFD217] z-[2000] animate-bounce-in text-black">
           <div className="flex justify-between items-start">
-            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">Fare offer</p>
+            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">{t("home.fareOffer")}</p>
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
               <Countdown until={offeredTrip.offerExpiresAt} />
             </p>
           </div>
           <h3 className="font-black text-lg">
-            {offeredTrip.driverName ?? "A driver"}
+            {offeredTrip.driverName ?? t("home.aDriver")}
             {offeredTrip.taxiPlate ? ` · ${offeredTrip.taxiPlate}` : ""}
           </h3>
-          <p className="text-xs font-black text-[#B88600]">{ratingText(offeredTrip.driverRating, offeredTrip.driverRatingCount)}</p>
+          <p className="text-xs font-black text-[#B88600]">{ratingText(offeredTrip.driverRating, offeredTrip.driverRatingCount, t)}</p>
           <p className="text-xs font-bold text-gray-500">
             {offeredTrip.pickupLocation} → {offeredTrip.destination}
           </p>
           <p className="text-3xl font-black mt-2">R{((offeredTrip.fare ?? 0) + (offeredTrip.tip ?? 0)).toFixed(2)}</p>
           {wallet && wallet.balance < (offeredTrip.fare ?? 0) + (offeredTrip.tip ?? 0) && (
             <p className="text-xs font-bold text-red-600 mt-1">
-              Your wallet has R{wallet.balance.toFixed(2)}.{" "}
+              {t("home.lowBalance", { balance: wallet.balance.toFixed(2) })}{" "}
               <Link href="/wallet" className="underline">
-                Top up
+                {t("home.topUp")}
               </Link>{" "}
-              to accept.
+              {t("home.toAccept")}
             </p>
           )}
           <div className="grid grid-cols-2 gap-2 mt-4">
@@ -308,14 +316,14 @@ export default function Home() {
               disabled={answering}
               className="py-4 bg-gray-100 font-black text-xs rounded-2xl uppercase tracking-widest disabled:opacity-60"
             >
-              Decline
+              {t("home.decline")}
             </button>
             <button
               onClick={() => answerOffer(offeredTrip, true)}
               disabled={answering}
               className="py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest disabled:opacity-60"
             >
-              Accept &amp; pay
+              {t("home.acceptPay")}
             </button>
           </div>
         </div>
@@ -323,13 +331,13 @@ export default function Home() {
 
       {waitingTrip && (
         <div className="fixed bottom-28 left-6 right-6 bg-white p-6 rounded-[32px] shadow-2xl border-2 border-gray-200 z-[2000] animate-bounce-in text-black">
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking for a driver</p>
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t("home.lookingForDriver")}</p>
           <h3 className="font-black text-lg">
             {waitingTrip.pickupLocation} → {waitingTrip.destination}
           </h3>
-          <p className="text-xs font-bold text-gray-400 mt-1">You&apos;ll see a driver&apos;s fare offer here. Nothing is charged until you accept it.</p>
+          <p className="text-xs font-bold text-gray-400 mt-1">{t("home.waitingNote")}</p>
           <button onClick={() => handleCancel(waitingTrip)} className="w-full mt-4 py-3 bg-red-50 text-red-500 font-black text-[10px] rounded-2xl uppercase tracking-widest active:bg-red-100 transition">
-            Cancel Request
+            {t("home.cancelRequest")}
           </button>
         </div>
       )}
@@ -339,19 +347,20 @@ export default function Home() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest" role="status">
-                {activeTrip.startedAt ? "On your way" : activeTrip.arrivedAt ? "Your driver has arrived" : "Driver on the way"}
+                {activeTrip.startedAt ? t("trip.onYourWay") : activeTrip.arrivedAt ? t("trip.driverArrived") : t("trip.driverComing")}
               </p>
-              <h3 className="font-black text-lg">{activeTrip.driverName ?? "Your driver"}</h3>
+              <h3 className="font-black text-lg">{activeTrip.driverName ?? t("trip.yourDriver")}</h3>
               <p className="text-xs font-bold text-gray-400 tracking-tighter">
-                {activeTrip.taxiPlate ? `${activeTrip.taxiPlate} · ` : ""}Fare R{(activeTrip.fare ?? 0).toFixed(2)}
+                {activeTrip.taxiPlate ? `${activeTrip.taxiPlate} · ` : ""}
+                {t("trip.fare", { fare: (activeTrip.fare ?? 0).toFixed(2) })}
               </p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setShowChat(true)} aria-label="Chat with driver" className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center active:scale-90 transition">
+              <button onClick={() => setShowChat(true)} aria-label={t("trip.chatWithDriver")} className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center active:scale-90 transition">
                 <ChatIcon />
               </button>
               {activeTrip.driverPhone && (
-                <a href={`tel:${activeTrip.driverPhone}`} aria-label="Call driver" className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white active:scale-90 transition">
+                <a href={`tel:${activeTrip.driverPhone}`} aria-label={t("trip.callDriver")} className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white active:scale-90 transition">
                   <PhoneIcon />
                 </a>
               )}
@@ -359,19 +368,19 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
             <button onClick={() => handlePanic(activeTrip)} className="py-3 bg-red-600 text-white font-black text-[10px] rounded-2xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition">
-              <AlertIcon className="w-4 h-4" /> Emergency
+              <AlertIcon className="w-4 h-4" /> {t("safety.emergency")}
             </button>
             <button onClick={() => handleCancel(activeTrip)} className="py-3 bg-red-50 text-red-500 font-black text-[10px] rounded-2xl uppercase tracking-widest active:bg-red-100 transition">
-              Cancel Ride
+              {t("trip.cancelRide")}
             </button>
           </div>
           <div className="flex gap-2 mt-2">
             <button onClick={() => handleShare(activeTrip)} className="flex-1 py-3 bg-black text-[#FFD217] font-black text-[10px] rounded-2xl uppercase tracking-widest active:scale-95 transition">
-              {sharing ? "Share again" : "Share my trip"}
+              {sharing ? t("share.again") : t("share.myTrip")}
             </button>
             {sharing && (
               <button onClick={() => stopSharing(activeTrip)} className="px-4 py-3 bg-gray-100 font-black text-[10px] rounded-2xl uppercase tracking-widest">
-                Stop sharing
+                {t("share.stop")}
               </button>
             )}
           </div>
@@ -379,7 +388,7 @@ export default function Home() {
       )}
 
       <RatePrompt trips={bookings} role="COMMUTER" onRated={() => void load()} />
-      {showChat && activeTrip && <ChatModal bookingId={activeTrip.id} title="Chat with driver" onClose={() => setShowChat(false)} />}
+      {showChat && activeTrip && <ChatModal bookingId={activeTrip.id} title={t("trip.chatWithDriver")} onClose={() => setShowChat(false)} />}
 
       <CommuterNav current="home" />
     </div>

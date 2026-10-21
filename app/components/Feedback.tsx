@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useT } from "../lib/i18n";
 
 // Toasts and confirm dialogs, replacing window.alert / window.confirm.
 
@@ -27,6 +28,7 @@ const FeedbackContext = createContext<FeedbackApi | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const tr = useT();
   const [pending, setPending] = useState<{ opts: ConfirmOptions; resolve: (ok: boolean) => void } | null>(null);
   const nextId = useRef(1);
 
@@ -73,14 +75,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             {pending.opts.message && <p className="text-sm font-bold text-gray-500 mb-6">{pending.opts.message}</p>}
             <div className="grid grid-cols-2 gap-3 mt-4">
               <button onClick={() => close(false)} className="py-4 rounded-2xl bg-gray-100 font-black text-xs uppercase tracking-widest">
-                {pending.opts.cancelLabel ?? "Back"}
+                {pending.opts.cancelLabel ?? tr("common.back")}
               </button>
               <button
                 onClick={() => close(true)}
                 autoFocus
                 className={`py-4 rounded-2xl font-black text-xs uppercase tracking-widest ${pending.opts.danger ? "bg-red-600 text-white" : "bg-black text-[#FFD217]"}`}
               >
-                {pending.opts.confirmLabel ?? "Confirm"}
+                {pending.opts.confirmLabel ?? tr("common.confirm")}
               </button>
             </div>
           </div>
