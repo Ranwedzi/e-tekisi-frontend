@@ -24,6 +24,20 @@ export interface Booking {
   taxiPlate: string | null;
   commuterName: string | null;
   commuterPhone: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  destinationLat: number | null;
+  destinationLng: number | null;
+  /** Trip progress (ISO-8601): driver at the pick-up, commuter on board, trip done. */
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  driverRating: number | null;
+  driverRatingCount: number | null;
+  commuterRating: number | null;
+  commuterRatingCount: number | null;
+  commuterRated: boolean;
+  driverRated: boolean;
 }
 
 export interface CreateBookingResponse {
@@ -77,6 +91,8 @@ export interface DriverReview {
   approvalDecidedAt: string | null;
   approvalDecidedBy: number | null;
   tripsCompleted: number;
+  rating: number | null;
+  ratingCount: number;
 }
 
 export interface Wallet {

@@ -12,6 +12,8 @@ import { DriverNav, NotificationBell } from "../components/Nav";
 import { Spinner } from "../components/Spinner";
 import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { usePolling } from "../lib/usePolling";
+import { RatePrompt, ratingText } from "../components/RatePrompt";
+import { directionsUrl, distanceKm, formatKm } from "../lib/distance";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
 import type { Booking, Driver, TripCompletedResponse } from "../lib/types";
@@ -126,6 +128,16 @@ export default function DriverDashboard() {
       });
       toast.success(`Trip completed. R${res.earned.toFixed(2)} added to your balance.`);
       setShowChat(false);
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
+  const progress = async (trip: Booking, step: "arrived" | "start") => {
+    try {
+      await apiFetch(`/api/bookings/${trip.id}/${step}`, { method: "PUT" });
+      toast.success(step === "arrived" ? "The commuter knows you're here." : "Trip started.");
       await load();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -253,8 +265,14 @@ export default function DriverDashboard() {
             pending.map((b) => (
               <div key={b.id} className="bg-[#262626] p-6 rounded-[32px] border-l-8 border-[#FFD217] shadow-xl animate-in fade-in slide-in-from-bottom-4">
                 {b.scheduledTime && <p className="text-xs font-bold text-gray-500 mb-2">Scheduled: {b.scheduledTime.replace("T", " ")}</p>}
-                <p className="font-black text-lg leading-tight mb-2">
+                <p className="font-black text-lg leading-tight mb-1">
                   {b.pickupLocation} → {b.destination}
+                </p>
+                <p className="text-xs font-bold text-gray-400 mb-2">
+                  {b.pickupLat != null && b.pickupLng != null && hasValidCoords
+                    ? `${formatKm(distanceKm([coords[0], coords[1]], [b.pickupLat, b.pickupLng]))} away · `
+                    : ""}
+                  Commuter {ratingText(b.commuterRating, b.commuterRatingCount)}
                 </p>
                 {b.tip ? <p className="text-xs font-bold text-green-400 mb-4">+ R{b.tip.toFixed(2)} tip</p> : <div className="mb-4" />}
                 <div className="grid grid-cols-2 gap-3">
@@ -293,9 +311,27 @@ export default function DriverDashboard() {
               )}
             </div>
           </div>
-          <button onClick={() => complete(activeTrip)} className="w-full py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest active:scale-95 transition">
-            Complete Trip
-          </button>
+          <a
+            href={directionsUrl(activeTrip.pickupLat, activeTrip.pickupLng, activeTrip.pickupLocation)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center w-full py-3 mb-2 bg-gray-100 font-black text-xs rounded-2xl uppercase tracking-widest"
+          >
+            Directions to pick-up
+          </a>
+          {!activeTrip.arrivedAt ? (
+            <button onClick={() => progress(activeTrip, "arrived")} className="w-full py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest active:scale-95 transition">
+              I&apos;ve arrived
+            </button>
+          ) : !activeTrip.startedAt ? (
+            <button onClick={() => progress(activeTrip, "start")} className="w-full py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest active:scale-95 transition">
+              Passenger on board: start trip
+            </button>
+          ) : (
+            <button onClick={() => complete(activeTrip)} className="w-full py-4 bg-black text-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest active:scale-95 transition">
+              Complete Trip
+            </button>
+          )}
           <div className="grid grid-cols-2 gap-2 mt-2">
             <button onClick={() => panic(activeTrip)} className="py-3 bg-red-600 text-white font-black text-[10px] rounded-2xl uppercase tracking-widest flex items-center justify-center gap-2">
               <AlertIcon className="w-4 h-4" /> Emergency
@@ -308,6 +344,7 @@ export default function DriverDashboard() {
       )}
 
       {fareFor && <FareDialog booking={fareFor} busy={busy} onSubmit={(fare) => sendOffer(fareFor, fare)} onCancel={() => setFareFor(null)} />}
+      <RatePrompt trips={myTrips} role="DRIVER" onRated={() => void load()} />
       {showChat && activeTrip && <ChatModal bookingId={activeTrip.id} title="Chat with commuter" onClose={() => setShowChat(false)} />}
 
       <DriverNav current="dashboard" />

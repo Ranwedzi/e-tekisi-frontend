@@ -10,6 +10,7 @@ import { AlertIcon, ChatIcon, PhoneIcon } from "../components/Icons";
 import { CommuterNav, NotificationBell } from "../components/Nav";
 import { ApiError, apiFetch, errorMessage, newIdempotencyKey } from "../lib/api";
 import { buildRoutePolyline, geocodeLocation } from "../lib/geo";
+import { RatePrompt, ratingText } from "../components/RatePrompt";
 import { usePolling } from "../lib/usePolling";
 import { useLivePolling } from "../lib/live";
 import { useGeolocation } from "../lib/useGeolocation";
@@ -56,6 +57,18 @@ export default function Home() {
   }, 15_000);
 
   const activeTrip = bookings.find((b) => b.status === "ACCEPTED") ?? null;
+  const [driverPos, setDriverPos] = useState<NearbyTaxi | null>(null);
+  useLivePolling(
+    async () => {
+      if (!activeTrip) return;
+      const pos = await apiFetch<{ lat?: number; lng?: number }>(`/api/bookings/${activeTrip.id}/driver-position`);
+      setDriverPos(pos.lat != null && pos.lng != null ? { lat: pos.lat, lng: pos.lng } : null);
+    },
+    ["bookings"],
+    10_000,
+    10_000,
+    !!activeTrip,
+  );
   const offeredTrip = activeTrip ? null : bookings.find((b) => b.status === "OFFERED") ?? null;
   const waitingTrip = activeTrip || offeredTrip ? null : bookings.find((b) => b.status === "PENDING") ?? null;
   const [answering, setAnswering] = useState(false);
@@ -91,9 +104,18 @@ export default function Home() {
     }
     setSubmitting(true);
     try {
+      // Coordinates help the driver find the pick-up: geocoded, or this phone's position.
+      const [p, d] = await Promise.allSettled([geocodeLocation(from.trim()), geocodeLocation(to.trim())]);
+      const pickupAt = (p.status === "fulfilled" && p.value) || (hasCoords ? ([coords[0], coords[1]] as LatLng) : null);
+      const destAt = d.status === "fulfilled" ? d.value : null;
       const res = await apiFetch<CreateBookingResponse>("/api/bookings/create", {
         method: "POST",
-        body: { pickupLocation: from.trim(), destination: to.trim() },
+        body: {
+          pickupLocation: from.trim(),
+          destination: to.trim(),
+          ...(pickupAt ? { pickupLat: pickupAt[0], pickupLng: pickupAt[1] } : {}),
+          ...(destAt ? { destinationLat: destAt[0], destinationLng: destAt[1] } : {}),
+        },
         idempotencyKey: newIdempotencyKey(),
       });
       toast.success(res.message);
@@ -209,7 +231,7 @@ export default function Home() {
 
       <div className="p-4 h-80">
         <div className="relative h-full bg-white rounded-[40px] overflow-hidden shadow-lg border-4 border-white">
-          <LiveMap center={coords} nearbyTaxis={nearbyTaxis} routePath={currentRoute?.path ?? []} />
+          <LiveMap center={coords} nearbyTaxis={activeTrip && driverPos ? [driverPos] : nearbyTaxis} routePath={currentRoute?.path ?? []} />
           {routeStatus === "loading" && (
             <div className="absolute top-4 left-4 bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full z-[1000]">Building route...</div>
           )}
@@ -263,6 +285,7 @@ export default function Home() {
             {offeredTrip.driverName ?? "A driver"}
             {offeredTrip.taxiPlate ? ` · ${offeredTrip.taxiPlate}` : ""}
           </h3>
+          <p className="text-xs font-black text-[#B88600]">{ratingText(offeredTrip.driverRating, offeredTrip.driverRatingCount)}</p>
           <p className="text-xs font-bold text-gray-500">
             {offeredTrip.pickupLocation} → {offeredTrip.destination}
           </p>
@@ -312,7 +335,9 @@ export default function Home() {
         <div className="fixed bottom-28 left-6 right-6 bg-white p-6 rounded-[32px] shadow-2xl border-2 border-[#FFD217] z-[2000] animate-bounce-in text-black">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest">Driver on the way</p>
+              <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest" role="status">
+                {activeTrip.startedAt ? "On your way" : activeTrip.arrivedAt ? "Your driver has arrived" : "Driver on the way"}
+              </p>
               <h3 className="font-black text-lg">{activeTrip.driverName ?? "Your driver"}</h3>
               <p className="text-xs font-bold text-gray-400 tracking-tighter">
                 {activeTrip.taxiPlate ? `${activeTrip.taxiPlate} · ` : ""}Fare R{(activeTrip.fare ?? 0).toFixed(2)}
@@ -350,6 +375,7 @@ export default function Home() {
         </div>
       )}
 
+      <RatePrompt trips={bookings} role="COMMUTER" onRated={() => void load()} />
       {showChat && activeTrip && <ChatModal bookingId={activeTrip.id} title="Chat with driver" onClose={() => setShowChat(false)} />}
 
       <CommuterNav current="home" />

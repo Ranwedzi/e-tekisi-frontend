@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "../../components/Feedback";
 import { BackIcon, ClockIcon } from "../../components/Icons";
+import { geocodeLocation } from "../../lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
 import type { CreateBookingResponse } from "../../lib/types";
 
@@ -30,7 +31,7 @@ export default function BookLater() {
       const res = await apiFetch<CreateBookingResponse>("/api/bookings/create", {
         method: "POST",
         // The commuter is taken from the sign-in token, not sent here.
-        body: { pickupLocation: pickupLocation.trim(), destination: destination.trim(), scheduledTime },
+        body: await withCoords({ pickupLocation: pickupLocation.trim(), destination: destination.trim(), scheduledTime }),
         idempotencyKey: newIdempotencyKey(),
       });
       toast.success(res.message);
@@ -105,4 +106,16 @@ export default function BookLater() {
       </form>
     </div>
   );
+}
+
+/** Adds geocoded coordinates when the addresses can be found (best effort). */
+async function withCoords<T extends { pickupLocation: string; destination: string }>(body: T) {
+  const [p, d] = await Promise.allSettled([geocodeLocation(body.pickupLocation), geocodeLocation(body.destination)]);
+  const pick = p.status === "fulfilled" ? p.value : null;
+  const dest = d.status === "fulfilled" ? d.value : null;
+  return {
+    ...body,
+    ...(pick ? { pickupLat: pick[0], pickupLng: pick[1] } : {}),
+    ...(dest ? { destinationLat: dest[0], destinationLng: dest[1] } : {}),
+  };
 }
