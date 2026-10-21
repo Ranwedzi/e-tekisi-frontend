@@ -2,7 +2,8 @@
 // dto/api package (BookingDto, DriverDto, CommuterDto, ApiRecords).
 
 export type Role = "COMMUTER" | "DRIVER" | "OPERATOR" | "ADMIN";
-export type BookingStatus = "PENDING" | "OFFERED" | "ACCEPTED" | "COMPLETED" | "CANCELLED";
+/** EXPIRED: no driver took the request in time (nothing was charged). */
+export type BookingStatus = "PENDING" | "OFFERED" | "ACCEPTED" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 export type LatLng = [number, number];
 
 export interface Booking {
@@ -38,6 +39,12 @@ export interface Booking {
   commuterRatingCount: number | null;
   commuterRated: boolean;
   driverRated: boolean;
+  /** When the commuter wants to leave (ISO-8601); null = now. */
+  scheduledAt: string | null;
+  /** When drivers could first see the request; null while a scheduled trip waits to be released. */
+  releasedAt: string | null;
+  /** A request nobody has taken by then expires. */
+  requestExpiresAt: string | null;
 }
 
 export interface CreateBookingResponse {

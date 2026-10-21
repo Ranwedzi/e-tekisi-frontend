@@ -14,19 +14,31 @@ import { RatePrompt, ratingText } from "../components/RatePrompt";
 import { AppPrompts } from "../components/AppPrompts";
 import { usePolling } from "../lib/usePolling";
 import { useLivePolling } from "../lib/live";
+import { formatWhen } from "../lib/when";
 import { useGeolocation } from "../lib/useGeolocation";
 import type { Booking, Commuter, CreateBookingResponse, LatLng, NearbyTaxi, Wallet } from "../lib/types";
-import { useT } from "../lib/i18n";
+import { useLocale } from "../lib/i18n";
 
 const LiveMap = dynamic(() => import("../components/LiveMap"), { ssr: false });
 
 type RouteState = { key: string; path: LatLng[]; failed: boolean };
 
+const DISMISSED_EXPIRED = "etekisi_expired_dismissed";
+
+function readDismissed(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(window.localStorage.getItem(DISMISSED_EXPIRED) ?? "[]") as number[];
+  } catch {
+    return [];
+  }
+}
+
 export default function Home() {
   const session = useAuthedSession();
   const toast = useToast();
   const confirm = useConfirm();
-  const t = useT();
+  const { t, tag } = useLocale();
   const { coords } = useGeolocation();
 
   const [user, setUser] = useState<Commuter | null>(null);
@@ -73,7 +85,29 @@ export default function Home() {
     !!activeTrip,
   );
   const offeredTrip = activeTrip ? null : bookings.find((b) => b.status === "OFFERED") ?? null;
-  const waitingTrip = activeTrip || offeredTrip ? null : bookings.find((b) => b.status === "PENDING") ?? null;
+  // Scheduled trips not yet shown to drivers are listed as upcoming, not as "looking for a driver".
+  const waitingTrip = activeTrip || offeredTrip ? null : bookings.find((b) => b.status === "PENDING" && b.releasedAt != null) ?? null;
+  const upcoming = bookings
+    .filter((b) => b.status === "PENDING" && b.releasedAt == null && b.scheduledAt)
+    .sort((a, b) => (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? ""));
+  // The latest request, if nobody took it within the last hour and it hasn't been dismissed here.
+  const [now] = useState(() => Date.now());
+  const [dismissedExpired, setDismissedExpired] = useState<number[]>(() => readDismissed());
+  const latest = bookings[0];
+  const expiredTrip =
+    !waitingTrip && !offeredTrip && !activeTrip && latest?.status === "EXPIRED" && latest.requestExpiresAt &&
+    now - new Date(latest.requestExpiresAt).getTime() < 60 * 60_000 && !dismissedExpired.includes(latest.id)
+      ? latest
+      : null;
+  const dismissExpired = (id: number) => {
+    const next = [...dismissedExpired, id].slice(-20);
+    setDismissedExpired(next);
+    try {
+      window.localStorage.setItem(DISMISSED_EXPIRED, JSON.stringify(next));
+    } catch {
+      // storage blocked: it just shows again next time
+    }
+  };
   const [answering, setAnswering] = useState(false);
 
   // Draw the active trip's route. Keyed by trip so a stale route is never shown for a new trip.
@@ -256,6 +290,56 @@ export default function Home() {
         </div>
       </div>
 
+      {expiredTrip && (
+        <div className="px-4 pt-2">
+          <div className="bg-white rounded-[32px] p-6 shadow-lg border-2 border-gray-200" role="status">
+            <p className="font-black">{t("home.expiredTitle")}</p>
+            <p className="text-xs font-bold text-gray-500 mt-1">
+              {t("home.expiredNote", { route: `${expiredTrip.pickupLocation} → ${expiredTrip.destination}` })}
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  setFrom(expiredTrip.pickupLocation);
+                  setTo(expiredTrip.destination);
+                  dismissExpired(expiredTrip.id);
+                }}
+                className="flex-1 py-3 bg-[#FFD217] font-black text-xs rounded-2xl uppercase tracking-widest"
+              >
+                {t("home.requestAgain")}
+              </button>
+              <button onClick={() => dismissExpired(expiredTrip.id)} className="px-4 py-3 font-black text-xs rounded-2xl uppercase text-gray-400">
+                {t("common.dismiss")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <section className="px-4 pt-2" aria-labelledby="upcoming-heading">
+          <h2 id="upcoming-heading" className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 mb-2">
+            {t("home.upcoming")}
+          </h2>
+          <div className="space-y-2">
+            {upcoming.map((u) => (
+              <div key={u.id} className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100">
+                <p className="text-[10px] font-black text-yellow-700 uppercase tracking-widest">
+                  {t("home.scheduledFor", { when: formatWhen(u.scheduledAt!, tag) })}
+                </p>
+                <p className="font-black mt-1">
+                  {u.pickupLocation} → {u.destination}
+                </p>
+                <p className="text-xs font-bold text-gray-400 mt-1">{t("home.releaseNote")}</p>
+                <button onClick={() => handleCancel(u)} className="mt-3 text-red-500 font-black text-[10px] uppercase tracking-widest">
+                  {t("home.cancelScheduled")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="p-4">
         <form onSubmit={handleRequest} className="bg-white rounded-[40px] p-8 shadow-xl border border-gray-50">
           <h2 className="text-2xl font-black mb-6">{t("home.startTrip")}</h2>
@@ -336,6 +420,11 @@ export default function Home() {
             {waitingTrip.pickupLocation} → {waitingTrip.destination}
           </h3>
           <p className="text-xs font-bold text-gray-400 mt-1">{t("home.waitingNote")}</p>
+          {waitingTrip.requestExpiresAt && (
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2">
+              {t("home.stillLooking")} · <Countdown until={waitingTrip.requestExpiresAt} />
+            </p>
+          )}
           <button onClick={() => handleCancel(waitingTrip)} className="w-full mt-4 py-3 bg-red-50 text-red-500 font-black text-[10px] rounded-2xl uppercase tracking-widest active:bg-red-100 transition">
             {t("home.cancelRequest")}
           </button>

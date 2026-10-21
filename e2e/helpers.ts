@@ -66,7 +66,7 @@ export const TEST_PDF = Buffer.from("%PDF-1.4\n% e-Tekisi e2e test document\n%%E
 
 const REQUIRED_DOCUMENTS = ["DRIVERS_LICENCE", "PRDP", "OPERATING_LICENCE"];
 
-async function bearer(request: APIRequestContext, email: string, password: string, role: string) {
+export async function bearer(request: APIRequestContext, email: string, password: string, role: string) {
   const login = await request.post(`${API}/api/auth/login`, { data: { email, password, role } });
   expect(login.ok(), `${role} login for ${email}`).toBeTruthy();
   return { Authorization: `Bearer ${(await login.json()).token}` };

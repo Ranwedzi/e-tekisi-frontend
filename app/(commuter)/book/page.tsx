@@ -7,7 +7,8 @@ import { BackIcon, ClockIcon } from "../../components/Icons";
 import { geocodeLocation } from "../../lib/geo";
 import { apiFetch, errorMessage, newIdempotencyKey } from "../../lib/api";
 import type { CreateBookingResponse } from "../../lib/types";
-import { useT } from "../../lib/i18n";
+import { formatWhen, toLocalInput } from "../../lib/when";
+import { useLocale } from "../../lib/i18n";
 
 export default function BookLater() {
   const router = useRouter();
@@ -16,7 +17,9 @@ export default function BookLater() {
   const [destination, setDestination] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [loading, setLoading] = useState(false);
-  const t = useT();
+  const { t, tag } = useLocale();
+  // The earliest and latest times the backend accepts (15 minutes to 14 days ahead).
+  const [limits] = useState(() => ({ min: toLocalInput(Date.now() + 16 * 60_000), max: toLocalInput(Date.now() + 14 * 86_400_000) }));
 
   const handleBooking = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,8 +27,14 @@ export default function BookLater() {
       toast.error(t("book.fillAll"));
       return;
     }
-    if (new Date(scheduledTime).getTime() < Date.now()) {
-      toast.error(t("book.future"));
+    // datetime-local is the phone's own time; send it as an exact moment.
+    const departure = new Date(scheduledTime);
+    if (departure.getTime() < Date.now() + 15 * 60_000) {
+      toast.error(departure.getTime() < Date.now() ? t("book.future") : t("book.tooSoon"));
+      return;
+    }
+    if (departure.getTime() > Date.now() + 14 * 86_400_000) {
+      toast.error(t("book.tooFar"));
       return;
     }
     setLoading(true);
@@ -33,10 +42,10 @@ export default function BookLater() {
       const res = await apiFetch<CreateBookingResponse>("/api/bookings/create", {
         method: "POST",
         // The commuter is taken from the sign-in token, not sent here.
-        body: await withCoords({ pickupLocation: pickupLocation.trim(), destination: destination.trim(), scheduledTime }),
+        body: await withCoords({ pickupLocation: pickupLocation.trim(), destination: destination.trim(), scheduledAt: departure.toISOString() }),
         idempotencyKey: newIdempotencyKey(),
       });
-      toast.success(res.message);
+      toast.success(res.booking.scheduledAt ? t("book.booked", { when: formatWhen(res.booking.scheduledAt, tag) }) : res.message);
       router.push("/");
     } catch (err) {
       toast.error(errorMessage(err));
@@ -62,7 +71,7 @@ export default function BookLater() {
         <p className="text-gray-400 font-bold text-center px-6">{t("book.intro")}</p>
       </div>
 
-      <form onSubmit={handleBooking} className="space-y-6">
+      <form onSubmit={handleBooking} noValidate className="space-y-6">
         <div className="space-y-2">
           <label htmlFor="pickup" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">{t("book.pickup")}</label>
           <input
@@ -93,10 +102,14 @@ export default function BookLater() {
             id="when"
             type="datetime-local"
             className="w-full p-5 bg-gray-50 rounded-[24px] border border-gray-100 outline-none font-bold text-gray-600"
+            min={limits.min}
+            max={limits.max}
             value={scheduledTime}
             onChange={(e) => setScheduledTime(e.target.value)}
           />
         </div>
+
+        <p className="text-[11px] font-bold text-gray-400 ml-2">{t("book.howItWorks")}</p>
 
         <button
           type="submit"

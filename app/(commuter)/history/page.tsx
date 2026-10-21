@@ -6,7 +6,8 @@ import { BackIcon, PhoneIcon } from "../../components/Icons";
 import { apiFetch, errorMessage } from "../../lib/api";
 import { usePolling } from "../../lib/usePolling";
 import type { Booking, BookingStatus } from "../../lib/types";
-import { useT } from "../../lib/i18n";
+import { useLocale } from "../../lib/i18n";
+import { formatWhen } from "../../lib/when";
 
 const STATUS_STYLE: Record<BookingStatus, string> = {
   PENDING: "bg-gray-100 text-gray-600",
@@ -14,13 +15,14 @@ const STATUS_STYLE: Record<BookingStatus, string> = {
   ACCEPTED: "bg-yellow-100 text-yellow-700",
   COMPLETED: "bg-green-100 text-green-700",
   CANCELLED: "bg-red-50 text-red-500",
+  EXPIRED: "bg-gray-100 text-gray-500",
 };
 
 export default function HistoryPage() {
   const session = useAuthedSession();
   const [history, setHistory] = useState<Booking[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const t = useT();
+  const { t, tag } = useLocale();
 
   usePolling(async () => {
     try {
@@ -54,7 +56,7 @@ export default function HistoryPage() {
           <div key={trip.id} className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
             <div className="flex justify-between items-start mb-4">
               <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${STATUS_STYLE[trip.status]}`}>{t(`status.${trip.status}`)}</span>
-              <p className="text-[10px] font-bold text-gray-400">{trip.scheduledTime?.replace("T", " ") ?? ""}</p>
+              <p className="text-[10px] font-bold text-gray-400">{trip.scheduledAt ? formatWhen(trip.scheduledAt, tag) : ""}</p>
             </div>
             <h3 className="font-black text-lg mb-2">
               {trip.pickupLocation} → {trip.destination}
