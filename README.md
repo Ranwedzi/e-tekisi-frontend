@@ -52,10 +52,13 @@ the base URL and the token. Error responses are RFC 7807 with a stable
 ```bash
 npm run lint
 npm run typecheck
+npm test          # unit tests (Vitest): translations, sessions, the API client
 npm run build
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same three.
+CI (`.github/workflows/ci.yml`) runs the same four. Unit tests live next to
+the code (`*.test.ts`) and cover logic without a browser; screens are tested
+end to end below.
 
 ## End-to-end tests (Playwright)
 
