@@ -34,9 +34,9 @@ export function refreshSession(): Promise<"ok" | "ended" | "network"> {
     } catch {
       return "network";
     } finally {
-      setTimeout(() => {
-        refreshing = null;
-      }, 0);
+      // Calls that failed while this was in flight share its result; any
+      // later 401 starts a new refresh.
+      refreshing = null;
     }
   })();
   return refreshing;
