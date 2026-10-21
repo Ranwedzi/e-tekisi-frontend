@@ -1,14 +1,15 @@
 "use client";
 import { useMemo, useSyncExternalStore } from "react";
+import { API_BASE } from "./config";
 import type { Role } from "./types";
 
-// The signed-in user. The token is the backend's JWT; userId and role are
-// copies of its claims so pages can build URLs without decoding it.
+// Who is signed in, so pages can route and build URLs. Not a secret: the
+// session itself is in httpOnly cookies the page can't read (the backend
+// sets them at sign-in and renews them, see apiFetch).
 export interface Session {
-  token: string;
   userId: number;
   role: Role;
-  /** Epoch ms when the token stops being accepted. */
+  /** Epoch ms when the session ends unless it's used (renewed on every refresh). */
   expiresAt: number;
 }
 
@@ -31,9 +32,10 @@ function safeGet(): string | null {
 function parse(raw: string | null | undefined): Session | null {
   if (!raw) return null;
   try {
-    const s = JSON.parse(raw) as Partial<Session>;
-    if (!s.token || typeof s.userId !== "number" || !s.role || typeof s.expiresAt !== "number") return null;
-    return s as Session;
+    const s = JSON.parse(raw) as Partial<Session> & { token?: unknown };
+    // Sessions from before cookies carried the token here: treat them as signed out.
+    if ("token" in s || typeof s.userId !== "number" || !s.role || typeof s.expiresAt !== "number") return null;
+    return { userId: s.userId, role: s.role, expiresAt: s.expiresAt };
   } catch {
     return null;
   }
@@ -44,8 +46,8 @@ export function getSession(): Session | null {
   return s && s.expiresAt > Date.now() ? s : null;
 }
 
-export function saveSession(token: string, userId: number, role: Role, expiresInSeconds: number) {
-  const session: Session = { token, userId, role, expiresAt: Date.now() + expiresInSeconds * 1000 };
+export function saveSession(userId: number, role: Role, sessionExpiresInSeconds: number) {
+  const session: Session = { userId, role, expiresAt: Date.now() + sessionExpiresInSeconds * 1000 };
   try {
     window.localStorage.setItem(KEY, JSON.stringify(session));
   } catch {
@@ -54,7 +56,28 @@ export function saveSession(token: string, userId: number, role: Role, expiresIn
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/** After a refresh: the session now lasts longer. */
+export function extendSession(sessionExpiresInSeconds: number) {
+  const s = read();
+  if (s) saveSession(s.userId, s.role, sessionExpiresInSeconds);
+}
+
+/** Ends the session on the server and clears its cookies (best effort; works while the page unloads). */
+function endServerSession() {
+  try {
+    void fetch(`${API_BASE}/api/auth/session/logout`, {
+      method: "POST",
+      credentials: "include",
+      keepalive: true,
+      headers: { "X-Requested-With": "etekisi" },
+    }).catch(() => undefined);
+  } catch {
+    // ignore
+  }
+}
+
 export function clearSession() {
+  endServerSession();
   try {
     window.localStorage.removeItem(KEY);
   } catch {
@@ -69,6 +92,7 @@ export function clearSession() {
  * we get there (other tabs still see the storage change and sign out).
  */
 export function signOutTo(url: string) {
+  endServerSession();
   try {
     window.localStorage.removeItem(KEY);
   } catch {

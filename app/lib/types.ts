@@ -236,9 +236,13 @@ export interface LoginResponse {
   mfaToken?: string;
   userId: number;
   role: Role;
-  token: string;
-  tokenType: string;
+  /** Only for API clients that don't ask for cookies; the web app's session is in httpOnly cookies. */
+  token?: string;
+  tokenType?: string;
+  /** Access cookie lifetime. */
   expiresInSeconds: number;
+  /** How long the session lasts unless renewed. */
+  sessionExpiresInSeconds: number;
   message?: string;
 }
 

@@ -109,6 +109,7 @@ function Profile() {
 
       <Notifications />
       <ChangePassword />
+      <SignedInDevices />
       <YourData />
     </div>
   );
@@ -249,6 +250,93 @@ function ChangePassword() {
           </div>
         </form>
       )}
+    </section>
+  );
+}
+
+interface Device {
+  device: string;
+  signedInAt: string;
+  lastActiveAt: string;
+}
+
+/** Where this account is signed in, and a way to sign out of all of them (e.g. a lost phone). */
+function SignedInDevices() {
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<Device[]>("/api/me/sessions")
+      .then((d) => alive && setDevices(d))
+      .catch(() => alive && setDevices([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const signOutEverywhere = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch("/api/me/sessions/revoke-all", { method: "POST" });
+      signOutTo("/login?reason=everywhere");
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <section className="mt-10" aria-labelledby="devices-heading">
+      <h3 id="devices-heading" className="text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase mb-3 px-1">
+        Signed in on
+      </h3>
+      <div className="p-5 bg-white border border-gray-100 rounded-[28px] shadow-sm space-y-3">
+        {devices === null ? (
+          <p className="text-sm font-bold text-gray-400">Loading…</p>
+        ) : (
+          <ul className="space-y-2">
+            {devices.map((d, i) => (
+              <li key={i} className="flex justify-between gap-3 text-sm">
+                <span className="font-black text-gray-800">{d.device}</span>
+                <span className="font-bold text-gray-400 text-right">active {when(d.lastActiveAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!confirming ? (
+          <button onClick={() => setConfirming(true)} className="text-red-500 font-black text-xs uppercase">
+            Sign out everywhere
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-500">Every phone and computer, this one included, will need to sign in again.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => void signOutEverywhere()}
+                disabled={busy}
+                className="flex-1 bg-red-500 text-white font-black text-sm py-3 rounded-2xl disabled:opacity-50"
+              >
+                {busy ? "Signing out…" : "Sign out everywhere"}
+              </button>
+              <button onClick={() => setConfirming(false)} className="flex-1 bg-white border border-gray-200 font-black text-sm py-3 rounded-2xl">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {error && (
+          <p className="text-sm font-bold text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
