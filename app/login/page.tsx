@@ -31,7 +31,7 @@ function LoginForm() {
   const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
 
   const signedIn = (data: LoginResponse) => {
-    saveSession(data.token, data.userId, data.role, data.expiresInSeconds);
+    saveSession(data.userId, data.role, data.sessionExpiresInSeconds);
     router.replace(homeFor(data.role));
   };
 
@@ -47,6 +47,8 @@ function LoginForm() {
         ? "Your account has been deleted."
       : params.get("reason") === "reset"
         ? "Password changed. Sign in with your new password."
+      : params.get("reason") === "everywhere"
+        ? "Signed out on all your devices. Sign in again."
       : params.get("reason") === "mfa"
         ? "Two-step sign-in changed. Sign in again."
       : params.get("registered") === "1"

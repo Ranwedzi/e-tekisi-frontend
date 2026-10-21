@@ -1,8 +1,52 @@
 "use client";
-import { clearSession, getSession } from "./session";
+import { API_BASE } from "./config";
+import { clearSession, extendSession, getSession } from "./session";
 
-/** Backend origin. Set NEXT_PUBLIC_API_URL in .env.local for anything but local dev. */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "");
+export { API_BASE };
+
+/**
+ * Sent with every call. X-Session asks sign-in to answer with httpOnly
+ * cookies instead of a token in the body; X-Requested-With is the backend's
+ * CSRF check for cookie-authenticated writes.
+ */
+export const SESSION_HEADERS = { "X-Session": "cookie", "X-Requested-With": "etekisi" } as const;
+
+let refreshing: Promise<"ok" | "ended" | "network"> | null = null;
+
+/**
+ * Renews the session cookies (the access cookie lasts 15 minutes). Concurrent
+ * callers share one request; the backend also tolerates another tab
+ * refreshing at the same moment.
+ */
+export function refreshSession(): Promise<"ok" | "ended" | "network"> {
+  refreshing ??= (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/session/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { ...SESSION_HEADERS, Accept: "application/json" },
+      });
+      if (!res.ok) return res.status === 401 ? "ended" : "network";
+      const data = (await res.json()) as { sessionExpiresInSeconds?: number };
+      if (typeof data.sessionExpiresInSeconds === "number") extendSession(data.sessionExpiresInSeconds);
+      return "ok";
+    } catch {
+      return "network";
+    } finally {
+      setTimeout(() => {
+        refreshing = null;
+      }, 0);
+    }
+  })();
+  return refreshing;
+}
+
+/** Signs out locally and goes to /login when the server says the session is over. */
+function sessionEnded(): never {
+  clearSession();
+  redirectToLogin("expired");
+  throw new ApiError("Please sign in again.", 401, "UNAUTHENTICATED");
+}
 
 /** An error response from the backend (RFC 7807 ProblemDetail) or a network failure (status 0). */
 export class ApiError extends Error {
@@ -45,27 +89,24 @@ function redirectToLogin(reason: string) {
 }
 
 /**
- * Calls the backend with the signed-in user's token. Resolves with the parsed
- * JSON body (undefined for empty responses); rejects with ApiError.
- * A 401 means the session is gone: it is cleared and the user sent to /login.
+ * Calls the backend with the session cookies. Resolves with the parsed JSON
+ * body (undefined for empty responses); rejects with ApiError. On a 401 the
+ * session is renewed once and the call retried; if that fails too, the user
+ * is signed out and sent to /login.
  */
 export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
+  return request<T>(path, opts, true);
+}
+
+async function request<T>(path: string, opts: ApiOptions, mayRefresh: boolean): Promise<T> {
   const { method = "GET", body, query, idempotencyKey, auth = true, signal } = opts;
 
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = { Accept: "application/json", ...SESSION_HEADERS };
   // FormData (file uploads) sets its own multipart Content-Type with the boundary.
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-  if (auth) {
-    const session = getSession();
-    if (!session) {
-      clearSession();
-      redirectToLogin("expired");
-      throw new ApiError("Please sign in again.", 401, "UNAUTHENTICATED");
-    }
-    headers.Authorization = `Bearer ${session.token}`;
-  }
+  if (auth && !getSession()) sessionEnded();
 
   let url = `${API_BASE}${path}`;
   if (query) {
@@ -83,10 +124,18 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
       method,
       headers,
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+      credentials: "include",
       signal,
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
+  }
+
+  if (res.status === 401 && auth && mayRefresh) {
+    const renewed = await refreshSession();
+    if (renewed === "ok") return request<T>(path, opts, false);
+    if (renewed === "ended") sessionEnded();
     throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
   }
 
@@ -101,10 +150,7 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
   }
 
   if (!res.ok) {
-    if (res.status === 401 && auth) {
-      clearSession();
-      redirectToLogin("expired");
-    }
+    if (res.status === 401 && auth) sessionEnded();
     const obj = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
     const message =
       (typeof obj.detail === "string" && obj.detail) ||
@@ -122,23 +168,18 @@ export async function apiFetch<T = unknown>(path: string, opts: ApiOptions = {})
   return data as T;
 }
 
-/** Downloads a protected file (e.g. a driver document) as a Blob, with the signed-in user's token. */
-export async function apiBlob(path: string): Promise<Blob> {
-  const session = getSession();
-  if (!session) {
-    clearSession();
-    redirectToLogin("expired");
-    throw new ApiError("Please sign in again.", 401, "UNAUTHENTICATED");
-  }
+/** Downloads a protected file (e.g. a driver document) as a Blob, with the session cookies. */
+export async function apiBlob(path: string, mayRefresh = true): Promise<Blob> {
+  if (!getSession()) sessionEnded();
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${session.token}` } });
+    res = await fetch(`${API_BASE}${path}`, { credentials: "include", headers: { ...SESSION_HEADERS } });
   } catch {
     throw new ApiError("Can't reach e-Tekisi. Check your connection and try again.", 0, "NETWORK");
   }
   if (res.status === 401) {
-    clearSession();
-    redirectToLogin("expired");
+    if (mayRefresh && (await refreshSession()) === "ok") return apiBlob(path, false);
+    sessionEnded();
   }
   if (!res.ok) throw new ApiError(res.status === 404 ? "That file isn't available." : `Request failed (${res.status})`, res.status);
   return res.blob();

@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { API_BASE } from "./api";
+import { API_BASE, SESSION_HEADERS, refreshSession } from "./api";
 import { getSession } from "./session";
 import { usePolling } from "./usePolling";
 
 /**
  * One live-event stream per tab (GET /api/events), shared by every hook.
  * Events only say which topic changed ("bookings", "messages:42", ...); the
- * page then refetches through the normal API. Read with fetch rather than
- * EventSource so the token goes in the Authorization header, not the URL.
+ * page then refetches through the normal API. Read with fetch (with the
+ * session cookies) so an expired access cookie can be renewed and retried.
  * Reconnects with backoff; disconnects when nothing is listening.
  */
 type Listener = (topic: string) => void;
@@ -27,15 +27,22 @@ function setConnected(v: boolean) {
 async function run(signal: AbortSignal) {
   let backoff = 1000;
   while (!signal.aborted) {
-    const session = getSession();
-    if (!session) break;
+    if (!getSession()) break;
     try {
       const res = await fetch(`${API_BASE}/api/events`, {
-        headers: { Authorization: `Bearer ${session.token}`, Accept: "text/event-stream" },
+        headers: { ...SESSION_HEADERS, Accept: "text/event-stream" },
+        credentials: "include",
         cache: "no-store",
         signal,
       });
-      if (res.status === 401 || res.status === 403) break; // signed out: polling handles the redirect
+      if (res.status === 401) {
+        // The access cookie lapsed: renew and reconnect. Ended: polling handles the redirect.
+        const renewed = await refreshSession();
+        if (renewed === "ended") break;
+        if (renewed === "ok") continue;
+        throw new Error("offline");
+      }
+      if (res.status === 403) break;
       if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
