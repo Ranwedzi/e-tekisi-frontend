@@ -91,9 +91,23 @@ test("commuter books, driver offers, commuter accepts, driver completes and cash
 
   // --- Driver: the job is active; complete it.
   await expect(d.getByText(/Active Job/)).toBeVisible({ timeout: 15_000 });
+  await expect(d.getByRole("link", { name: "Directions to pick-up" })).toHaveAttribute("href", /google\.com\/maps/);
+  await d.getByRole("button", { name: "I've arrived" }).click();
+  await expect(c.getByText("Your driver has arrived")).toBeVisible({ timeout: 5_000 });
+  await d.getByRole("button", { name: "Passenger on board: start trip" }).click();
+  await expect(c.getByText("On your way")).toBeVisible({ timeout: 5_000 });
   await d.getByRole("button", { name: "Complete Trip" }).click();
   await d.getByRole("button", { name: "Complete", exact: true }).click();
   await expect(d.getByText("Trip completed. R30.00 added to your balance.")).toBeVisible();
+
+  // --- Both rate each other.
+  await c.getByRole("radio", { name: "5 stars" }).click({ timeout: 10_000 });
+  await c.getByLabel("Comment (optional)").fill("Smooth ride");
+  await c.getByRole("button", { name: "Send rating" }).click();
+  await expect(c.getByText("Thanks for your rating.")).toBeVisible();
+  await d.getByRole("radio", { name: "4 stars" }).click({ timeout: 10_000 });
+  await d.getByRole("button", { name: "Send rating" }).click();
+  await expect(d.getByText("Thanks for your rating.")).toBeVisible();
 
   // The shared page now only says the trip is over.
   await v.reload();

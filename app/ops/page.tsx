@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useConfirm, useToast } from "../components/Feedback";
 import { RecoveryCodes, SetupInstructions } from "../components/StaffMfa";
 import { Reconciliation } from "../components/Reconciliation";
+import { ratingText } from "../components/RatePrompt";
 import { AlertIcon, LogoutIcon } from "../components/Icons";
 import { apiFetch, errorMessage, openProtectedFile } from "../lib/api";
 import { clearSession, signOutTo } from "../lib/session";
@@ -347,6 +348,8 @@ function Drivers() {
                 <dd className="font-bold">{d.registeredAt ? new Date(d.registeredAt).toLocaleString() : ""}</dd>
                 <dt className="font-bold text-gray-400">Trips</dt>
                 <dd className="font-bold">{d.tripsCompleted}</dd>
+                <dt className="font-bold text-gray-400">Rating</dt>
+                <dd className="font-bold">{ratingText(d.rating, d.ratingCount)}</dd>
                 {d.approvalNote && (
                   <>
                     <dt className="font-bold text-gray-400">Reason</dt>
