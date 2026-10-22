@@ -1,0 +1,35 @@
+# Dependabot: alerts and fixes for known vulnerabilities, plus a weekly batch
+# of version updates. Minor and patch updates are grouped into one pull
+# request per ecosystem to keep the noise down; major versions come one by one.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Africa/Johannesburg
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Africa/Johannesburg
+    groups:
+      docker-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Africa/Johannesburg
+    groups:
+      actions:
+        update-types: [minor, patch]
