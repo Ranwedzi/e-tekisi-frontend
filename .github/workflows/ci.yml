@@ -14,8 +14,8 @@ jobs:
     name: Lint, type-check, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: npm
@@ -40,18 +40,18 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout frontend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: frontend
 
       - name: Checkout backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ vars.BACKEND_REPOSITORY }}
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
           path: backend
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
 
@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload Playwright results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-results
           path: frontend/test-results/
