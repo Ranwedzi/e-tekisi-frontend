@@ -14,7 +14,7 @@ jobs:
     name: Lint, type-check, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "20"
@@ -40,12 +40,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout frontend
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           path: frontend
 
       - name: Checkout backend
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ vars.BACKEND_REPOSITORY }}
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
