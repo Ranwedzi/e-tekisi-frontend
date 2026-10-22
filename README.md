@@ -98,6 +98,25 @@ npm run build
 CI (`.github/workflows/ci.yml`) runs the same four, plus `npm audit` on
 production dependencies. Unit tests live next to the code (`*.test.ts`).
 
+## Keeping dependencies up to date
+
+Dependabot (`.github/dependabot.yml`) opens pull requests:
+- every Monday, for npm packages, the Docker base image and the GitHub
+  Actions, with minor and patch updates grouped into one request per type;
+- at any time, when a package has a known security hole (these also show on
+  the repository's **Security** tab).
+
+How to handle them:
+- **Security fixes:** merge them as soon as CI is green.
+- **Minor and patch groups:** merge when CI is green.
+- **Node versions:** stay on long-term-support Node (even numbers: 20, 22,
+  24). Close updates to odd versions such as `node:25`, and comment
+  `@dependabot ignore this major version`.
+- **Major upgrades** (for example ESLint 10, Vitest 5 or `@types/node` to a
+  newer Node than the one we run): treat each as its own piece of work. Read
+  the release notes, run lint, tests and the browser tests, and merge only
+  when everything passes.
+
 ## End-to-end tests (Playwright)
 
 `e2e/` drives the real app in a phone-sized Chrome against the whole stack:
